@@ -13,7 +13,7 @@ from hexSimProcessor import HexSimProcessor
 plt.close('all')
 isPlot = True
 N = 10  # number of iterations
-Nsize = 512
+Nsize = 256
 
 ''' Initialize '''
 # h=HexSimProcessor
