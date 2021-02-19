@@ -18,13 +18,14 @@ Nsize = 512
 ''' Initialize '''
 # h=HexSimProcessor
 h = HexSimProcessor()
-h.debug = False
+h.debug = True
 h.cleanup = True
 h.N = (Nsize // 2) * 2
 
 ''' Read Image '''
 data_folder = Path(os.path.dirname(__file__))
-filename  = "./SIMdata_2019-11-05_15-21-42.tif"
+# filename  = "./SIMdata_2019-11-05_15-21-42.tif"
+filename  = "./S_1.252021_0209_1828_Raw_Image.tif"
 filepath = os.path.join(data_folder, filename)
 # print(data_folder)
 # quit()
@@ -58,12 +59,12 @@ print(f'Calibration time: {elapsed_time:5f}s ')
 
 ''' Recontruction '''
 
-''' FFTW '''
-start_time = time.time()
-for i in range(0, 10):
-    imga = h.reconstruct_fftw(img1)
-elapsed_time = time.time() - start_time
-print(f'FFTW Reconstruction time: {elapsed_time / 10:5f}s ')
+# ''' FFTW '''
+# start_time = time.time()
+# for i in range(0, 10):
+#     imga = h.reconstruct_fftw(img1)
+# elapsed_time = time.time() - start_time
+# print(f'FFTW Reconstruction time: {elapsed_time / 10:5f}s ')
 
 ''' rFFTW '''
 start_time = time.time()
@@ -122,6 +123,7 @@ elapsed_time = time.time() - start_time
 print(f'FFTW Reconstructframe time: {elapsed_time / (7 * N):5f}s ')
 if isPlot:
     plt.figure()
+    plt.title('Reconstructframe:FFTW')
     plt.imshow(imga, cmap=cm.hot, clim=(0.0, 0.7 * imga.max()))
 
 ''' rFFTW '''
@@ -132,6 +134,7 @@ elapsed_time = time.time() - start_time
 print(f'rFFTW Reconstructframe time: {elapsed_time / (7 * N):5f}s ')
 if isPlot:
     plt.figure()
+    plt.title('Reconstructframe:rFFTW')
     plt.imshow(imga, cmap=cm.hot, clim=(0.0, 0.7 * imga.max()))
 
 ''' ocv '''
@@ -143,6 +146,7 @@ try:
     print(f'ocv Reconstruct frame time: {elapsed_time / (7 * N):5f}s ')
     if isPlot:
         plt.figure()
+        plt.title('Reconstructframe:opeCV')
         plt.imshow(imga, cmap=cm.hot, clim=(0.0, 0.7 * imga.max()))
 except AssertionError as error:
     print(error)
@@ -156,6 +160,7 @@ try:
     print(f'ocvU Reconstruct frame time: {elapsed_time / (7 * N):5f}s ')
     if isPlot:
         plt.figure()
+        plt.title('Reconstructframe:opeCV GPU')
         plt.imshow(imga.get(), cmap=cm.hot, clim=(0.0, 0.7 * imga.get().max()))
 except AssertionError as error:
     print(error)
@@ -169,6 +174,7 @@ try:
     print(f'CuPy Reconstructframe time: {elapsed_time / (7 * N):5f}s ')
     if isPlot:
         plt.figure()
+        plt.title('Reconstructframe:CUPY')
         plt.imshow(imgb.get(), cmap=cm.hot, clim=(0.0, 0.7 * imgb.get().max()))
 except AssertionError as error:
     print(error)

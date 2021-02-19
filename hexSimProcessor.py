@@ -39,8 +39,8 @@ except:
 class HexSimProcessor:
     N = 256  # points to use in fft
     pixelsize = 6.5  # camera pixel size, um
-    magnification = 40  # objective magnification
-    NA = 0.75  # numerial aperture at sample
+    magnification = 60  # objective magnification
+    NA = 1.1  # numerial aperture at sample
     n = 1.33  # refractive index at sample
     wavelength = 0.525  # wavelength, um
     alpha = 0.3  # zero order attenuation width
