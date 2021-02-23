@@ -58,15 +58,6 @@ class HexSimProcessor:
         self._lastN = 0
 
     def _allocate_arrays(self):
-        ''' define grids '''
-        self._dx = self.pixelsize / self.magnification  # Sampling in image plane
-        self._res = self.wavelength / (2 * self.NA)
-        self._oversampling = self._res / self._dx
-        self._dk = self._oversampling / (self.N / 2)  # Sampling in frequency plane
-        self._kx = np.arange(-self._dk * self.N / 2, self._dk * self.N / 2, self._dk, dtype=np.single)
-        [self._kx, self._ky] = np.meshgrid(self._kx, self._kx)
-        self._dx2 = self._dx / 2
-
         ''' define matrix '''
         self._reconfactor = np.zeros((7, 2 * self.N, 2 * self.N), dtype=np.single)  # for reconstruction
 
@@ -98,6 +89,15 @@ class HexSimProcessor:
     def calibrate(self, img):
         if self.N != self._lastN:
             self._allocate_arrays()
+
+        ''' define k grids '''
+        self._dx = self.pixelsize / self.magnification  # Sampling in image plane
+        self._res = self.wavelength / (2 * self.NA)
+        self._oversampling = self._res / self._dx
+        self._dk = self._oversampling / (self.N / 2)  # Sampling in frequency plane
+        self._kx = np.arange(-self._dk * self.N / 2, self._dk * self.N / 2, self._dk, dtype=np.single)
+        [self._kx, self._ky] = np.meshgrid(self._kx, self._kx)
+        self._dx2 = self._dx / 2
 
         kr = sqrt(self._kx ** 2 + self._ky ** 2, dtype=np.single)
         kxbig = np.arange(-self._dk * self.N, self._dk * self.N, self._dk, dtype=np.single)
