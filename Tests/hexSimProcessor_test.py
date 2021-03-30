@@ -8,7 +8,7 @@ import numpy as np
 import time
 
 # import cProfile
-from hexSimProcessor import HexSimProcessor
+from SIM_processing.hexSimProcessor import HexSimProcessor
 
 plt.close('all')
 isPlot = True
@@ -21,6 +21,12 @@ h = HexSimProcessor()
 h.debug = False
 h.cleanup = True
 h.N = (Nsize // 2) * 2
+h.NA = 0.75
+h.magnification = 40
+h.wavelength = 0.560
+h.beta = 0.99
+h.n = 1.0
+h.debug = True
 
 ''' Read Image '''
 data_folder = Path(os.path.dirname(__file__))
@@ -186,6 +192,7 @@ else:
 
 start_time = time.time()
 h.cleanup = False
+h.debug = False
 
 ''' Calibration cupy'''
 try:
@@ -239,10 +246,10 @@ try:
     print(f'Batch Reconstruction compact time(CuPy): {elapsed_time:5f}s ')
     if isPlot:
         plt.figure()
-        plt.imshow(imgout[20, :, :].get(), cmap=cm.hot, clim=(0.0, 0.7 * imgout[20, :, :].max()))
+        plt.imshow(imgout[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgout[20, :, :].max()))
     if isPlot:
         plt.figure()
-        plt.imshow(imgout[20, :, :].get() - imgouta[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgout[20, :, :].max()))
+        plt.imshow(imgout[20, :, :] - imgouta[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgout[20, :, :].max()))
 except AssertionError as error:
     print(error)
 
@@ -254,7 +261,7 @@ try:
     print(f'Batch Reconstruction time(CuPy): {elapsed_time:5f}s ')
     if isPlot:
         plt.figure()
-        plt.imshow(imgout[20, :, :].get(), cmap=cm.hot, clim=(0.0, 0.7 * imgout[20, :, :].max()))
+        plt.imshow(imgout[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgout[20, :, :].max()))
 except AssertionError as error:
     print(error)
 
@@ -268,10 +275,11 @@ hb = HexSimProcessor()
 hb.N = 512
 hb.magnification = 40
 hb.NA = 0.75
+hb.wavelength = 0.560
 hb.n = 1.0
 hb.eta = 0.7
 hb.beta = 0.999
-hb.alpha = 0.1
+hb.alpha = 0.3
 hb.w = 0.3
 hb.debug = True
 hb.cleanup = True
