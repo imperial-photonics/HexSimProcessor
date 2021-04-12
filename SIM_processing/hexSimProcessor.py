@@ -270,10 +270,10 @@ class HexSimProcessor:
             # minimum search radius in k-space
             mask1 = (self.kr > 1.9 * self.eta)
             for i in range(0, 3):
-                self.kx[i], self.ky[i] = self._coarseFindCarrier(sum_prepared_comp[0, :, :],
+                self.kx[i], self.ky[i] = self._coarseFindCarrier_cupy(sum_prepared_comp[0, :, :],
                                                               sum_prepared_comp[i + 1, :, :], mask1)
         for i in range(0, 3):
-            ckx[i], cky[i], p[i], ampl[i] = self._refineCarrier(sum_prepared_comp[0, :, :],
+            ckx[i], cky[i], p[i], ampl[i] = self._refineCarrier_cupy(sum_prepared_comp[0, :, :],
                                                                   sum_prepared_comp[i + 1, :, :], self.kx[i], self.ky[i])
         self.kx = ckx # store found kx, ky, p and ampl values
         self.ky = cky
