@@ -62,22 +62,21 @@ class HexSimProcessor:
 
     def _allocate_arrays(self):
         ''' define matrix '''
-        self._reconfactor = np.zeros((7, 2 * self.N, 2 * self.N), dtype=np.single)  # for reconstruction
+        self._reconfactor = np.zeros((3, 2 * self.N, 2 * self.N), dtype=np.single)  # for reconstruction
 
         self._prefilter = np.zeros((self.N, self.N),
                                    dtype=np.single)  # for prefilter stage, includes otf and zero order supression
         self._postfilter = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
-        self._carray = np.zeros((7, 2 * self.N, 2 * self.N), dtype=np.complex64)
-        self._carray1 = np.zeros((7, 2 * self.N, self.N + 1), dtype=np.complex64)
+        self._carray = np.zeros((3, 2 * self.N, 2 * self.N), dtype=np.complex64)
+        self._carray1 = np.zeros((3, 2 * self.N, self.N + 1), dtype=np.complex64)
 
-        self._imgstore = np.zeros((7, 2 * self.N, 2 * self.N), dtype=np.single)
-        # self._imgbig1 = np.zeros((7, 2 * self.N, 2 * self.N), dtype=np.single)
+        self._imgstore = np.zeros((3, 2 * self.N, 2 * self.N), dtype=np.single)
         self._bigimgstore = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
         if cupy:
             self._prefilter_cp = cp.zeros((self.N, self.N), dtype=np.single)
             self._postfilter_cp = cp.zeros((2 * self.N, 2 * self.N), dtype=np.single)
-            self._carray_cp = cp.zeros((7, 2 * self.N, self.N + 1), dtype=np.complex)
-            self._reconfactor_cp = cp.zeros((7, 2 * self.N, 2 * self.N), dtype=np.single)
+            self._carray_cp = cp.zeros((3, 2 * self.N, self.N + 1), dtype=np.complex)
+            self._reconfactor_cp = cp.zeros((3, 2 * self.N, 2 * self.N), dtype=np.single)
             self._bigimgstore_cp = cp.zeros((2 * self.N, 2 * self.N), dtype=np.single)
         if opencv:
             self._prefilter_ocv = np.zeros((self.N, self.N),
@@ -107,18 +106,18 @@ class HexSimProcessor:
         kxbig = np.arange(-self._dk * self.N, self._dk * self.N, self._dk, dtype=np.single)
         [kxbig, kybig] = np.meshgrid(kxbig, kxbig)
 
-        '''Separate bands into DC and 3 high frequency bands'''
-        M = exp(1j * 2 * pi / 7) ** ((np.arange(0, 4)[:, np.newaxis]) * np.arange(0, 7))
+        '''Separate bands into DC and 1 high frequency band'''
+        M = exp(1j * 2 * pi / 3) ** ((np.arange(0, 2)[:, np.newaxis]) * np.arange(0, 3))
 
-        sum_prepared_comp = np.zeros((4, self.N, self.N), dtype=np.complex)
+        sum_prepared_comp = np.zeros((2, self.N, self.N), dtype=np.complex)
         wienerfilter = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
 
-        for k in range(0, 4):
-            for l in range(0, 7):
+        for k in range(0, 2):
+            for l in range(0, 3):
                 sum_prepared_comp[k, :, :] = sum_prepared_comp[k, :, :] + img[l, :, :] * M[k, l]
 
         # find parameters
-        ckx = np.zeros((3, 1), dtype=np.single)
+        ckx = np.zeros((1, 1), dtype=np.single)
         cky = np.zeros((3, 1), dtype=np.single)
         p = np.zeros((3, 1), dtype=np.single)
         ampl = np.zeros((3, 1), dtype=np.single)
@@ -126,22 +125,21 @@ class HexSimProcessor:
         if findCarrier:
             # minimum search radius in k-space
             mask1 = (self.kr > 1.9 * self.eta)
-            for i in range(0, 3):
-                self.kx[i], self.ky[i] = self._coarseFindCarrier(sum_prepared_comp[0, :, :],
-                                                              sum_prepared_comp[i + 1, :, :], mask1)
-        for i in range(0, 3):
-            ckx[i], cky[i], p[i], ampl[i] = self._refineCarrier(sum_prepared_comp[0, :, :],
-                                                                  sum_prepared_comp[i + 1, :, :], self.kx[i], self.ky[i])
+            self.kx, self.ky = self._coarseFindCarrier(sum_prepared_comp[0, :, :],
+                                                              sum_prepared_comp[1, :, :], mask1)
+
+        ckx, cky, p, ampl = self._refineCarrier(sum_prepared_comp[0, :, :],
+                                                                  sum_prepared_comp[1, :, :], self.kx, self.ky)
         self.kx = ckx # store found kx, ky, p and ampl values
         self.ky = cky
         self.p = p
         self.ampl = ampl
 
         if self.debug:
-            print(f'kx = {ckx[0]}, {ckx[1]}, {ckx[2]}')
-            print(f'ky = {cky[0]}, {cky[1]}, {cky[2]}')
-            print(f'p  = {p[0]}, {p[1]}, {p[2]}')
-            print(f'a  = {ampl[0]}, {ampl[1]}, {ampl[2]}')
+            print(f'kx = {ckx}')
+            print(f'ky = {cky}')
+            print(f'p  = {p}')
+            print(f'a  = {ampl}')
 
         ph = np.single(2 * pi * self.NA / self.wavelength)
 
@@ -153,22 +151,14 @@ class HexSimProcessor:
         else:
             A = 12
 
-        for idx_p in range(0, 7):
-            pstep = idx_p * 2 * pi / 7
+        for idx_p in range(0, 3):
+            pstep = idx_p * 2 * pi / 3
             if self.usemodulation:
                 self._reconfactor[idx_p, :, :] = (1 + 4 / ampl[0] * np.outer(exp(1j * ph * cky[0] * yy), exp(
-                    1j * (ph * ckx[0] * xx - pstep + p[0]))).real
-                                                  + 4 / ampl[1] * np.outer(exp(1j * ph * cky[1] * yy), exp(
-                            1j * (ph * ckx[1] * xx - 2 * pstep + p[1]))).real
-                                                  + 4 / ampl[2] * np.outer(exp(1j * ph * cky[2] * yy), exp(
-                            1j * (ph * ckx[2] * xx - 3 * pstep + p[2]))).real)
+                    1j * (ph * ckx[0] * xx - pstep + p[0]))).real )
             else:
                 self._reconfactor[idx_p, :, :] = (1 + A * np.outer(exp(1j * ph * cky[0] * yy),
-                                                                   exp(1j * (ph * ckx[0] * xx - pstep + p[0]))).real
-                                                  + A * np.outer(exp(1j * ph * cky[1] * yy),
-                                                                 exp(1j * (ph * ckx[1] * xx - 2 * pstep + p[1]))).real
-                                                  + A * np.outer(exp(1j * ph * cky[2] * yy),
-                                                                 exp(1j * (ph * ckx[2] * xx - 3 * pstep + p[2]))).real)
+                                                                   exp(1j * (ph * ckx[0] * xx - pstep + p[0]))).real)
 
         # calculate pre-filter factors
 
@@ -179,15 +169,14 @@ class HexSimProcessor:
 
         mtot = np.full((2 * self.N, 2 * self.N), False)
 
-        for i in range(0, 3):
-            krbig = sqrt((kxbig - ckx[i]) ** 2 + (kybig - cky[i]) ** 2)
-            mask = (krbig < 2)
-            mtot = mtot | mask
-            wienerfilter = (wienerfilter + mask * ((self._tfm(krbig, mask)) ** 2) * self._attm(krbig, mask))
-            krbig = sqrt((kxbig + ckx[i]) ** 2 + (kybig + cky[i]) ** 2)
-            mask = (krbig < 2)
-            mtot = mtot | mask
-            wienerfilter = (wienerfilter + mask * ((self._tfm(krbig, mask) ** 2) * self._attm(krbig, mask)))
+        krbig = sqrt((kxbig - ckx) ** 2 + (kybig - cky) ** 2)
+        mask = (krbig < 2)
+        mtot = mtot | mask
+        wienerfilter = (wienerfilter + mask * ((self._tfm(krbig, mask)) ** 2) * self._attm(krbig, mask))
+        krbig = sqrt((kxbig + ckx) ** 2 + (kybig + cky) ** 2)
+        mask = (krbig < 2)
+        mtot = mtot | mask
+        wienerfilter = (wienerfilter + mask * ((self._tfm(krbig, mask) ** 2) * self._attm(krbig, mask)))
         krbig = sqrt(kxbig ** 2 + kybig ** 2)
         mask = (krbig < 2)
         mtot = mtot | mask
@@ -199,21 +188,13 @@ class HexSimProcessor:
             plt.title('WienerFilter')
             plt.imshow(wienerfilter)
 
-        kmax = 1 * (2 + sqrt(ckx[0] ** 2 + cky[0] ** 2))
+        kmax = 1 * (2 + sqrt(ckx ** 2 + cky ** 2))
+        # need to fix this next bit still
         wienerfilter = mtot * (1 - krbig * mtot / kmax) / (wienerfilter * mtot + self.w ** 2)
         self._postfilter = fft.fftshift(wienerfilter)
 
-        if self.cleanup:
-            imgo = self.reconstruct_fftw(img)
-            kernel = np.ones((5, 5), np.uint8)
-            mask_tmp = abs(fft.fftshift(fft.fft2(imgo))) > (10 * gaussian_filter(abs(fft.fftshift(fft.fft2(imgo))), 5))
-            mask = scipy.ndimage.morphology.binary_dilation(np.single(mask_tmp), kernel)
-            mask[self.N - 12:self.N + 13, self.N - 12:self.N + 13] = np.full((25, 25), False)
-            mask_shift = (fft.fftshift(mask))
-            self._postfilter[mask_shift.astype(bool)] = 0
-
         if opencv:
-            self._reconfactorU = [cv2.UMat(self._reconfactor[idx_p, :, :]) for idx_p in range(0, 7)]
+            self._reconfactorU = [cv2.UMat(self._reconfactor[idx_p, :, :]) for idx_p in range(0, 3)]
             self._prefilter_ocv = np.single(cv2.dft(fft.ifft2(self._prefilter).real))
             pf = np.zeros((self.N, self.N, 2), dtype=np.single)
             pf[:, :, 0] = self._prefilter
