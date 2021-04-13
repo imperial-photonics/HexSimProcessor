@@ -11,7 +11,7 @@ import time
 from SIM_processing.hexSimProcessor import HexSimProcessor
 
 plt.close('all')
-isPlot = True
+isPlot = False
 N = 10  # number of iterations
 Nsize = 512
 
@@ -26,7 +26,7 @@ h.magnification = 40
 h.wavelength = 0.560
 h.beta = 0.99
 h.n = 1.0
-h.debug = True
+h.debug = False
 
 ''' Read Image '''
 data_folder = Path(os.path.dirname(__file__))
@@ -49,6 +49,7 @@ if isPlot:
 
 ''' Calibration Cupy'''
 try:
+    h.calibrate_cupy(img1)
     start_time = time.time()
     h.calibrate_cupy(img1)
     elapsed_time = time.time() - start_time
@@ -116,7 +117,7 @@ try:
     print(f'CuPy Reconstruction time: {elapsed_time / N:5f}s ')
     if isPlot:
         plt.figure()
-        plt.imshow(imgb.get(), cmap=cm.gray)
+        plt.imshow(imgb, cmap=cm.gray)
 except AssertionError as error:
     print(error)
 
@@ -175,7 +176,7 @@ try:
     print(f'CuPy Reconstructframe time: {elapsed_time / (7 * N):5f}s ')
     if isPlot:
         plt.figure()
-        plt.imshow(imgb.get(), cmap=cm.hot, clim=(0.0, 0.7 * imgb.get().max()))
+        plt.imshow(imgb, cmap=cm.hot, clim=(0.0, 0.7 * imgb.max()))
 except AssertionError as error:
     print(error)
 
@@ -281,7 +282,7 @@ hb.eta = 0.7
 hb.beta = 0.999
 hb.alpha = 0.3
 hb.w = 0.3
-hb.debug = True
+hb.debug = False
 hb.cleanup = True
 
 hb.calibrate(imgbeads)
