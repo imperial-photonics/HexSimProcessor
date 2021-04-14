@@ -59,25 +59,23 @@ class HexSimProcessor:
         self.ky = np.zeros((3, 1), dtype=np.single)
         self.p = np.zeros((3, 1), dtype=np.single)
         self.ampl = np.zeros((3, 1), dtype=np.single)
+        self._allocate_arrays()
 
     def _allocate_arrays(self):
         ''' define matrix '''
         self._reconfactor = np.zeros((7, 2 * self.N, 2 * self.N), dtype=np.single)  # for reconstruction
-
         self._prefilter = np.zeros((self.N, self.N),
                                    dtype=np.single)  # for prefilter stage, includes otf and zero order supression
         self._postfilter = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
         self._carray = np.zeros((7, 2 * self.N, 2 * self.N), dtype=np.complex64)
         self._carray1 = np.zeros((7, 2 * self.N, self.N + 1), dtype=np.complex64)
-
         self._imgstore = np.zeros((7, 2 * self.N, 2 * self.N), dtype=np.single)
-        # self._imgbig1 = np.zeros((7, 2 * self.N, 2 * self.N), dtype=np.single)
         self._bigimgstore = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
         if cupy:
-            self._prefilter_cp = cp.zeros((self.N, self.N), dtype=np.single)
-            self._postfilter_cp = cp.zeros((2 * self.N, 2 * self.N), dtype=np.single)
+            # self._prefilter_cp = cp.zeros((self.N, self.N), dtype=np.single)
+            # self._postfilter_cp = cp.zeros((2 * self.N, 2 * self.N), dtype=np.single)
             self._carray_cp = cp.zeros((7, 2 * self.N, self.N + 1), dtype=np.complex)
-            self._reconfactor_cp = cp.zeros((7, 2 * self.N, 2 * self.N), dtype=np.single)
+            # self._reconfactor_cp = cp.zeros((7, 2 * self.N, 2 * self.N), dtype=np.single)
             self._bigimgstore_cp = cp.zeros((2 * self.N, 2 * self.N), dtype=np.single)
         if opencv:
             self._prefilter_ocv = np.zeros((self.N, self.N),
@@ -188,10 +186,12 @@ class HexSimProcessor:
             mask = (krbig < 2)
             mtot = mtot | mask
             wienerfilter = (wienerfilter + mask * ((self._tfm(krbig, mask) ** 2) * self._attm(krbig, mask)))
+
         krbig = sqrt(kxbig ** 2 + kybig ** 2)
         mask = (krbig < 2)
         mtot = mtot | mask
         wienerfilter = (wienerfilter + mask * self._tfm(krbig, mask) ** 2 * self._attm(krbig, mask))
+
         self.wienerfilter = wienerfilter
 
         if self.debug:
@@ -230,7 +230,16 @@ class HexSimProcessor:
 
     def calibrate_cupy(self, img, findCarrier = True):
         assert cupy, "No CuPy present"
+        ''' define grids '''
         self.N = len(img[0, :, :])
+        self._dx = self.pixelsize / self.magnification  # Sampling in image plane
+        self._res = self.wavelength / (2 * self.NA)
+        self._oversampling = self._res / self._dx
+        self._dk = self._oversampling / (self.N / 2)  # Sampling in frequency plane
+        self._k = np.arange(-self._dk * self.N / 2, self._dk * self.N / 2, self._dk, dtype=np.double)
+        [self._kx, self._ky] = np.meshgrid(self._k, self._k)
+        self._dx2 = self._dx / 2
+
         if self.N != self._lastN:
             self._allocate_arrays()
 
@@ -249,7 +258,7 @@ class HexSimProcessor:
                 sum_prepared_comp[k, :, :] = sum_prepared_comp[k, :, :] + img[l, :, :] * M[k, l]
 
         # minimum search radius in k-space
-        mask1 = (kr > 1.9 * self.eta)
+        mask1 = (self.kr > 1.9 * self.eta)
 
         # find parameters
         ckx = np.zeros((3, 1), dtype=np.single)
@@ -261,10 +270,10 @@ class HexSimProcessor:
             # minimum search radius in k-space
             mask1 = (self.kr > 1.9 * self.eta)
             for i in range(0, 3):
-                self.kx[i], self.ky[i] = self._coarseFindCarrier(sum_prepared_comp[0, :, :],
+                self.kx[i], self.ky[i] = self._coarseFindCarrier_cupy(sum_prepared_comp[0, :, :],
                                                               sum_prepared_comp[i + 1, :, :], mask1)
         for i in range(0, 3):
-            ckx[i], cky[i], p[i], ampl[i] = self._refineCarrier(sum_prepared_comp[0, :, :],
+            ckx[i], cky[i], p[i], ampl[i] = self._refineCarrier_cupy(sum_prepared_comp[0, :, :],
                                                                   sum_prepared_comp[i + 1, :, :], self.kx[i], self.ky[i])
         self.kx = ckx # store found kx, ky, p and ampl values
         self.ky = cky
