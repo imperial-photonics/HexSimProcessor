@@ -59,7 +59,6 @@ class HexSimProcessor:
         self.ky = np.zeros((3, 1), dtype=np.single)
         self.p = np.zeros((3, 1), dtype=np.single)
         self.ampl = np.zeros((3, 1), dtype=np.single)
-        self._allocate_arrays()
 
     def _allocate_arrays(self):
         ''' define matrix '''
@@ -84,7 +83,7 @@ class HexSimProcessor:
             self._carray_ocv = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
             self._carray_ocvU = cv2.UMat((2 * self.N, 2 * self.N), s=0.0, type=cv2.CV_32FC2)
             self._bigimgstoreU = cv2.UMat(self._bigimgstore)
-            self._imgstoreU = [cv2.UMat((2 * self.N, 2 * self.N), s=0.0, type=cv2.CV_32FC2) for i in range(7)]
+            self._imgstoreU = [cv2.UMat((self.N, self.N), s=0.0, type=cv2.CV_32F) for i in range(7)]
         self._lastN = self.N
 
     def calibrate(self, img, findCarrier = True):
@@ -191,7 +190,6 @@ class HexSimProcessor:
         mask = (krbig < 2)
         mtot = mtot | mask
         wienerfilter = (wienerfilter + mask * self._tfm(krbig, mask) ** 2 * self._attm(krbig, mask))
-
         self.wienerfilter = wienerfilter
 
         if self.debug:
@@ -375,7 +373,7 @@ class HexSimProcessor:
         self._carray[:, 3 * self.N // 2:2 * self.N, 3 * self.N // 2:2 * self.N] = imf[:, self.N // 2:self.N,
                                                                                   self.N // 2:self.N]
         img2 = np.sum(np.real(fft.ifft2(self._carray)).real * self._reconfactor, 0)
-        self._imgstore = img
+        self._imgstore = img.copy()
         self._bigimgstore = fft.ifft2(fft.fft2(img2) * self._postfilter).real
         return self._bigimgstore
 
@@ -384,19 +382,20 @@ class HexSimProcessor:
         self._carray1[:, 0:self.N // 2, 0:self.N // 2 + 1] = imf[:, 0:self.N // 2, 0:self.N // 2 + 1]
         self._carray1[:, 3 * self.N // 2:2 * self.N, 0:self.N // 2 + 1] = imf[:, self.N // 2:self.N, 0:self.N // 2 + 1]
         img2 = np.sum(fft.irfft2(self._carray1) * self._reconfactor, 0)
-        self._imgstore = img
+        self._imgstore = img.copy()
         self._bigimgstore = fft.irfft2(fft.rfft2(img2) * self._postfilter[:, 0:self.N + 1])
         return self._bigimgstore
 
     def reconstruct_ocv(self, img):
         assert opencv, "No opencv present"
         img2 = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
-        for i in range(0, 7):
+        for i in range(7):
             imf = cv2.mulSpectrums(cv2.dft(img[i, :, :]), self._prefilter_ocv, 0)
             self._carray_ocv[0:self.N // 2, 0:self.N] = imf[0:self.N // 2, 0:self.N]
             self._carray_ocv[3 * self.N // 2:2 * self.N, 0:self.N] = imf[self.N // 2:self.N, 0:self.N]
             img2 = cv2.add(img2, cv2.multiply(cv2.idft(self._carray_ocv, flags=cv2.DFT_SCALE | cv2.DFT_REAL_OUTPUT),
                                               self._reconfactor[i, :, :]))
+        self._imgstore = img.copy()
         return cv2.idft(cv2.mulSpectrums(cv2.dft(img2), self._postfilter_ocv, 0),
                         flags=cv2.DFT_SCALE | cv2.DFT_REAL_OUTPUT)
 
@@ -404,7 +403,7 @@ class HexSimProcessor:
         assert opencv, "No opencv present"
         img2 = cv2.UMat((2 * self.N, 2 * self.N), s=0.0, type=cv2.CV_32FC1)
         mask = cv2.UMat((self.N // 2, self.N // 2), s=1, type=cv2.CV_8U)
-        for i in range(0, 7):
+        for i in range(7):
             self._imgstoreU[i] = cv2.UMat(img[i, :, :])
             imf = cv2.multiply(cv2.dft(self._imgstoreU[i], flags=cv2.DFT_COMPLEX_OUTPUT), self._prefilter_ocvU)
             cv2.copyTo(src=cv2.UMat(imf, (0, 0, self.N // 2, self.N // 2)), mask=mask,
@@ -419,12 +418,11 @@ class HexSimProcessor:
                                               self._reconfactorU[i]))
         self._bigimgstoreU = cv2.idft(cv2.multiply(cv2.dft(img2, flags=cv2.DFT_COMPLEX_OUTPUT), self._postfilter_ocvU),
                                       flags=cv2.DFT_SCALE | cv2.DFT_REAL_OUTPUT)
-
         return self._bigimgstoreU
 
     def reconstruct_cupy(self, img):
         assert cupy, "No CuPy present"
-        self._imgstore = img
+        self._imgstore = img.copy()
         imf = cp.fft.rfft2(cp.asarray(img)) * cp.asarray(self._prefilter[:, 0:self.N // 2 + 1])
         self._carray_cp[:, 0:self.N // 2, 0:self.N // 2 + 1] = imf[:, 0:self.N // 2, 0:self.N // 2 + 1]
         self._carray_cp[:, 3 * self.N // 2:2 * self.N, 0:self.N // 2 + 1] = imf[:, self.N // 2:self.N,
@@ -447,7 +445,7 @@ class HexSimProcessor:
         self._carray[0, 3 * self.N // 2:2 * self.N, 3 * self.N // 2:2 * self.N] = imf[self.N // 2:self.N,
                                                                                   self.N // 2:self.N]
         img2 = fft.ifft2(self._carray[0, :, :]).real * self._reconfactor[i, :, :]
-        self._imgstore[i, :, :] = img
+        self._imgstore[i, :, :] = img.copy()
         self._bigimgstore = self._bigimgstore + fft.ifft2(fft.fft2(img2) * self._postfilter).real
         return self._bigimgstore
 
@@ -457,7 +455,7 @@ class HexSimProcessor:
         self._carray1[0, 0:self.N // 2, 0:self.N // 2 + 1] = imf[0:self.N // 2, 0:self.N // 2 + 1]
         self._carray1[0, 3 * self.N // 2:2 * self.N, 0:self.N // 2 + 1] = imf[self.N // 2:self.N, 0:self.N // 2 + 1]
         img2 = fft.irfft2(self._carray1[0, :, :]) * self._reconfactor[i, :, :]
-        self._imgstore[i, :, :] = img
+        self._imgstore[i, :, :] = img.copy()
         self._bigimgstore = self._bigimgstore + fft.irfft2(fft.rfft2(img2) * self._postfilter[:, 0:self.N + 1])
         return self._bigimgstore
 
@@ -469,14 +467,13 @@ class HexSimProcessor:
         self._carray_ocv[3 * self.N // 2:2 * self.N, 0:self.N] = imf[self.N // 2:self.N, 0:self.N]
         img2 = cv2.multiply(cv2.idft(self._carray_ocv, flags=cv2.DFT_SCALE | cv2.DFT_REAL_OUTPUT),
                             self._reconfactor[i, :, :])
-        self._imgstore[i, :, :] = img
+        self._imgstore[i, :, :] = img.copy()
         self._bigimgstore = self._bigimgstore + cv2.idft(cv2.mulSpectrums(cv2.dft(img2), self._postfilter_ocv, 0),
                                                          flags=cv2.DFT_SCALE | cv2.DFT_REAL_OUTPUT)
         return self._bigimgstore
 
     def reconstructframe_ocvU(self, img, i):
         assert opencv, "No opencv present"
-        img2 = cv2.UMat((2 * self.N, 2 * self.N), s=0.0, type=cv2.CV_32FC1)
         mask = cv2.UMat((self.N // 2, self.N // 2), s=1, type=cv2.CV_8U)
         imU = cv2.UMat(img)
         diff = cv2.subtract(imU, self._imgstoreU[i])
@@ -493,8 +490,8 @@ class HexSimProcessor:
                             self._reconfactorU[i])
         self._imgstoreU[i] = imU
         self._bigimgstoreU = cv2.add(self._bigimgstoreU,
-                                     cv2.idft(cv2.mulSpectrums(cv2.dft(img2, flags=cv2.DFT_COMPLEX_OUTPUT),
-                                                               self._postfilter_ocvU, 0)
+                                     cv2.idft(cv2.multiply(cv2.dft(img2, flags=cv2.DFT_COMPLEX_OUTPUT),
+                                                               self._postfilter_ocvU)
                                               , flags=cv2.DFT_SCALE | cv2.DFT_REAL_OUTPUT))
         return self._bigimgstoreU
 
@@ -507,7 +504,7 @@ class HexSimProcessor:
         img2 = cp.fft.irfft2(self._carray_cp[0, :, :]) * cp.asarray(self._reconfactor[i, :, :])
         self._bigimgstore_cp = self._bigimgstore_cp + cp.fft.irfft2(
             cp.fft.rfft2(img2) * self._postfilter_cp[:, 0:self.N + 1])
-        self._imgstore[i, :, :] = img
+        self._imgstore[i, :, :] = img.copy()
         return self._bigimgstore_cp.get()
 
     # endregion
