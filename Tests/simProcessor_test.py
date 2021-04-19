@@ -322,11 +322,12 @@ h2 = SimProcessor()
 h2.debug = False
 h2.cleanup = True
 h2.N = (Nsize // 2) * 2
-h2.NA = 0.75
-h2.magnification = 40
-h2.wavelength = 0.560
+h2.NA = 1.1
+h2.magnification = 60
+h2.wavelength = 0.525
 h2.beta = 0.99
-h2.n = 1.0
+h2.alpha = 0.3
+h2.n = 1.33
 h2.debug = True
 isPlot = True
 
@@ -337,7 +338,8 @@ h2.calibrate(img1x2)
 img1x2o = h2.reconstruct_fftw(img1x2)
 if isPlot:
     plt.figure()
-    plt.imshow(img1x2o, cmap=cm.hot, clim=(0.0, 0.7 * img1x2o.max()))
+    # plt.imshow(img1x2o, cmap=cm.hot, clim=(0.0, 0.7 * img1x2o.max()))
+    plt.imshow(img1x2o[256:768,256:768], cmap=cm.hot)
 
 for i in range(3):
     img1x2o = h2.reconstructframe_fftw(img1x2a[i , :, :], i)
@@ -388,7 +390,7 @@ if isPlot:
 
 img1x2 = hexTo2Beam(img2[140:147, :, :],2)
 try:
-    h2.calibrate_cupy(img1x2)
+    h2.calibrate(img1x2)
 except AssertionError as error:
     print(error)
 

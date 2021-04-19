@@ -169,9 +169,35 @@ class SimProcessor(HexSimProcessor):
             plt.title('WienerFilter')
             plt.imshow(wienerfilter)
 
-        kmax = 1 * (2 + sqrt(ckx ** 2 + cky ** 2))
+        th = np.linspace(0, 2 * pi, 360)
+        inv = np.geterr()['invalid']
+        np.seterr(invalid = 'ignore')
+        kmaxth = np.fmax(2, np.fmax(ckx * np.cos(th) + cky * np.sin(th) +
+                                        np.sqrt(4 - (ckx * np.sin(th)) ** 2  - (cky * np.cos(th)) ** 2  +
+                                            ckx * cky * np.sin(2 * th)),
+                                    - ckx * np.cos(th) - cky * np.sin(th) +
+                                        np.sqrt(4 - (ckx * np.sin(th)) ** 2  - (cky * np.cos(th)) ** 2  +
+                                            ckx * cky * np.sin(2 * th))))
+        np.seterr(invalid = inv)
+        if self.debug:
+            plt.figure()
+            plt.plot(th,kmaxth)
+
+        thbig = np.arctan2(kybig,kxbig)
+        kmax = np.interp(thbig,th,kmaxth, period = 2 * pi)
+
+        if self.debug:
+            plt.figure()
+            plt.imshow(kmax)
+
+        # kmax = 1 * (2 + sqrt(ckx ** 2 + cky ** 2))
         # need to fix this next bit still
         wienerfilter = mtot * (1 - krbig * mtot / kmax) / (wienerfilter * mtot + self.w ** 2)
+
+        if self.debug:
+            plt.figure()
+            plt.imshow(wienerfilter)
+
         self._postfilter = fft.fftshift(wienerfilter)
 
         if opencv:

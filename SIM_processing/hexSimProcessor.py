@@ -87,6 +87,13 @@ class HexSimProcessor:
         self._lastN = self.N
 
     def calibrate(self, img, findCarrier = True):
+        self._calibrate(img, findCarrier, useCupy = False)
+
+    def calibrate_cupy(self, img, findCarrier = True):
+        assert cupy, "No CuPy present"
+        self._calibrate(img, findCarrier, useCupy = True)
+
+    def _calibrate(self, img, findCarrier = True, useCupy = False):
         self.N = len(img[0, :, :])
         if self.N != self._lastN:
             self._allocate_arrays()
@@ -124,11 +131,22 @@ class HexSimProcessor:
             # minimum search radius in k-space
             mask1 = (self.kr > 1.9 * self.eta)
             for i in range(0, 3):
-                self.kx[i], self.ky[i] = self._coarseFindCarrier(sum_prepared_comp[0, :, :],
-                                                              sum_prepared_comp[i + 1, :, :], mask1)
+                if not useCupy:
+                    self.kx[i], self.ky[i] = self._coarseFindCarrier(sum_prepared_comp[0, :, :],
+                                                            sum_prepared_comp[i + 1, :, :], mask1)
+                else:
+                    self.kx[i], self.ky[i] = self._coarseFindCarrier_cupy(sum_prepared_comp[0, :, :],
+                                                            sum_prepared_comp[i + 1, :, :], mask1)
         for i in range(0, 3):
-            ckx[i], cky[i], p[i], ampl[i] = self._refineCarrier(sum_prepared_comp[0, :, :],
-                                                                  sum_prepared_comp[i + 1, :, :], self.kx[i], self.ky[i])
+            if not useCupy:
+                ckx[i], cky[i], p[i], ampl[i] = self._refineCarrier(sum_prepared_comp[0, :, :],
+                                                                    sum_prepared_comp[i + 1, :, :], self.kx[i],
+                                                                    self.ky[i])
+            else:
+                ckx[i], cky[i], p[i], ampl[i] = self._refineCarrier_cupy(sum_prepared_comp[0, :, :],
+                                                                    sum_prepared_comp[i + 1, :, :], self.kx[i],
+                                                                    self.ky[i])
+
         self.kx = ckx # store found kx, ky, p and ampl values
         self.ky = cky
         self.p = p
@@ -176,6 +194,11 @@ class HexSimProcessor:
 
         mtot = np.full((2 * self.N, 2 * self.N), False)
 
+        th = np.linspace(0, 2 * pi, 360)
+        inv = np.geterr()['invalid']
+        np.seterr(invalid='ignore')
+        kmaxth = 2;
+
         for i in range(0, 3):
             krbig = sqrt((kxbig - ckx[i]) ** 2 + (kybig - cky[i]) ** 2)
             mask = (krbig < 2)
@@ -185,6 +208,16 @@ class HexSimProcessor:
             mask = (krbig < 2)
             mtot = mtot | mask
             wienerfilter = (wienerfilter + mask * ((self._tfm(krbig, mask) ** 2) * self._attm(krbig, mask)))
+            kmaxth = np.fmax(kmaxth, np.fmax(ckx[i] * np.cos(th) + cky[i] * np.sin(th) +
+                                        np.sqrt(4 - (ckx[i] * np.sin(th)) ** 2 - (cky[i] * np.cos(th)) ** 2 +
+                                                ckx[i] * cky[i] * np.sin(2 * th)),
+                                        - ckx[i] * np.cos(th) - cky[i] * np.sin(th) +
+                                        np.sqrt(4 - (ckx[i] * np.sin(th)) ** 2 - (cky[i] * np.cos(th)) ** 2 +
+                                                ckx[i] * cky[i] * np.sin(2 * th))))
+        np.seterr(invalid=inv)
+        if self.debug:
+            plt.figure()
+            plt.plot(th, kmaxth)
 
         krbig = sqrt(kxbig ** 2 + kybig ** 2)
         mask = (krbig < 2)
@@ -192,13 +225,23 @@ class HexSimProcessor:
         wienerfilter = (wienerfilter + mask * self._tfm(krbig, mask) ** 2 * self._attm(krbig, mask))
         self.wienerfilter = wienerfilter
 
+        thbig = np.arctan2(kybig, kxbig)
+        kmax = np.interp(thbig, th, kmaxth, period=2 * pi)
+
+        if self.debug:
+            plt.figure()
+            plt.imshow(kmax)
+
         if self.debug:
             plt.figure()
             plt.title('WienerFilter')
             plt.imshow(wienerfilter)
 
-        kmax = 1 * (2 + sqrt(ckx[0] ** 2 + cky[0] ** 2))
         wienerfilter = mtot * (1 - krbig * mtot / kmax) / (wienerfilter * mtot + self.w ** 2)
+        if self.debug:
+            plt.figure()
+            plt.title('WienerFilter')
+            plt.imshow(wienerfilter)
         self._postfilter = fft.fftshift(wienerfilter)
 
         if self.cleanup:
@@ -226,144 +269,148 @@ class HexSimProcessor:
         if cupy:
             self._postfilter_cp = cp.asarray(self._postfilter)
 
-    def calibrate_cupy(self, img, findCarrier = True):
-        assert cupy, "No CuPy present"
-        ''' define grids '''
-        self.N = len(img[0, :, :])
-        self._dx = self.pixelsize / self.magnification  # Sampling in image plane
-        self._res = self.wavelength / (2 * self.NA)
-        self._oversampling = self._res / self._dx
-        self._dk = self._oversampling / (self.N / 2)  # Sampling in frequency plane
-        self._k = np.arange(-self._dk * self.N / 2, self._dk * self.N / 2, self._dk, dtype=np.double)
-        [self._kx, self._ky] = np.meshgrid(np.single(self._k), np.single(self._k))
-        self._dx2 = self._dx / 2
-
-        if self.N != self._lastN:
-            self._allocate_arrays()
-
-        self.kr = np.sqrt(self._kx ** 2 + self._ky ** 2, dtype=np.single)
-        kxbig = np.arange(-self._dk * self.N, self._dk * self.N, self._dk, dtype=np.single)
-        [kxbig, kybig] = np.meshgrid(kxbig, kxbig)
-
-        '''Separate bands into DC and 3 high frequency bands'''
-        M = exp(1j * 2 * pi / 7) ** ((np.arange(0, 4)[:, np.newaxis]) * np.arange(0, 7))
-
-        sum_prepared_comp = np.zeros((4, self.N, self.N), dtype=np.complex)
-        wienerfilter = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
-
-        for k in range(0, 4):
-            for l in range(0, 7):
-                sum_prepared_comp[k, :, :] = sum_prepared_comp[k, :, :] + img[l, :, :] * M[k, l]
-
-        # minimum search radius in k-space
-        mask1 = (self.kr > 1.9 * self.eta)
-
-        # find parameters
-        ckx = np.zeros((3, 1), dtype=np.single)
-        cky = np.zeros((3, 1), dtype=np.single)
-        p = np.zeros((3, 1), dtype=np.single)
-        ampl = np.zeros((3, 1), dtype=np.single)
-
-        if findCarrier:
-            # minimum search radius in k-space
-            mask1 = (self.kr > 1.9 * self.eta)
-            for i in range(0, 3):
-                self.kx[i], self.ky[i] = self._coarseFindCarrier_cupy(sum_prepared_comp[0, :, :],
-                                                              sum_prepared_comp[i + 1, :, :], mask1)
-        for i in range(0, 3):
-            ckx[i], cky[i], p[i], ampl[i] = self._refineCarrier_cupy(sum_prepared_comp[0, :, :],
-                                                                  sum_prepared_comp[i + 1, :, :], self.kx[i], self.ky[i])
-        self.kx = ckx # store found kx, ky, p and ampl values
-        self.ky = cky
-        self.p = p
-        self.ampl = ampl
-
-        ph = np.single(2 * pi * self.NA / self.wavelength)
-
-        xx = np.arange(-self._dx2 * self.N, self._dx2 * self.N, self._dx2, dtype=np.single)
-        yy = xx
-
-        if self.axial:
-            A = 6
-        else:
-            A = 12
-
-        for idx_p in range(0, 7):
-            pstep = idx_p * 2 * pi / 7
-            if self.usemodulation:
-                self._reconfactor[idx_p, :, :] = (1 + 4 / ampl[0] * np.outer(exp(1j * ph * cky[0] * yy), exp(
-                            1j * (ph * ckx[0] * xx - pstep + p[0]))).real
-                                                  + 4 / ampl[1] * np.outer(exp(1j * ph * cky[1] * yy), exp(
-                            1j * (ph * ckx[1] * xx - 2 * pstep + p[1]))).real
-                                                  + 4 / ampl[2] * np.outer(exp(1j * ph * cky[2] * yy), exp(
-                            1j * (ph * ckx[2] * xx - 3 * pstep + p[2]))).real)
-            else:
-                self._reconfactor[idx_p, :, :] = (1 + A * np.outer(exp(1j * ph * cky[0] * yy),
-                                                                   exp(1j * (ph * ckx[0] * xx - pstep + p[0]))).real
-                                                  + A * np.outer(exp(1j * ph * cky[1] * yy),
-                                                                 exp(1j * (ph * ckx[1] * xx - 2 * pstep + p[1]))).real
-                                                  + A * np.outer(exp(1j * ph * cky[2] * yy),
-                                                                 exp(1j * (ph * ckx[2] * xx - 3 * pstep + p[2]))).real)
-
-        # calculate pre-filter factors
-
-        mask2 = (self.kr < 2)
-
-        self._prefilter = np.single((self._tfm(self.kr, mask2) * self._attm(self.kr, mask2)))
-        self._prefilter = fft.fftshift(self._prefilter)
-
-        mtot = np.full((2 * self.N, 2 * self.N), False)
-
-        for i in range(0, 3):
-            krbig = sqrt((kxbig - ckx[i]) ** 2 + (kybig - cky[i]) ** 2)
-            mask = (krbig < 2)
-            mtot = mtot | mask
-            wienerfilter = (wienerfilter + mask * ((self._tfm(krbig, mask)) ** 2) * self._attm(krbig, mask))
-            krbig = sqrt((kxbig + ckx[i]) ** 2 + (kybig + cky[i]) ** 2)
-            mask = (krbig < 2)
-            mtot = mtot | mask
-            wienerfilter = (wienerfilter + mask * ((self._tfm(krbig, mask) ** 2) * self._attm(krbig, mask)))
-
-        krbig = sqrt(kxbig ** 2 + kybig ** 2)
-        mask = (krbig < 2)
-        mtot = mtot | mask
-        wienerfilter = (wienerfilter + mask * self._tfm(krbig, mask) ** 2 * self._attm(krbig, mask))
-
-        self.wienerfilter = wienerfilter
-
-        if self.debug:
-            plt.figure()
-            plt.title('WienerFilter')
-            plt.imshow(wienerfilter)
-
-        kmax = 1 * (2 + sqrt(ckx[0] ** 2 + cky[0] ** 2))
-        wienerfilter = mtot * (1 - krbig * mtot / kmax) / (wienerfilter * mtot + self.w ** 2)
-        self._postfilter = fft.fftshift(wienerfilter)
-
-        if self.cleanup:
-            imgo = self.reconstruct_fftw(img)
-            kernel = np.ones((5, 5), np.uint8)
-            mask_tmp = abs(fft.fftshift(fft.fft2(imgo))) > (10 * gaussian_filter(abs(fft.fftshift(fft.fft2(imgo))), 5))
-            mask = scipy.ndimage.morphology.binary_dilation(np.single(mask_tmp), kernel)
-            mask[self.N - 12:self.N + 13, self.N - 12:self.N + 13] = np.full((25, 25), False)
-            mask_shift = (fft.fftshift(mask))
-            self._postfilter[mask_shift.astype(bool)] = 0
-
-        if opencv:
-            self._reconfactorU = [cv2.UMat(self._reconfactor[idx_p, :, :]) for idx_p in range(0, 7)]
-            self._prefilter_ocv = np.single(cv2.dft(fft.ifft2(self._prefilter).real))
-            pf = np.zeros((self.N, self.N, 2), dtype=np.single)
-            pf[:, :, 0] = self._prefilter
-            pf[:, :, 1] = self._prefilter
-            self._prefilter_ocvU = cv2.UMat(np.single(pf))
-            self._postfilter_ocv = np.single(cv2.dft(fft.ifft2(self._postfilter).real))
-            pf = np.zeros((2 * self.N, 2 * self.N, 2), dtype=np.single)
-            pf[:, :, 0] = self._postfilter
-            pf[:, :, 1] = self._postfilter
-            self._postfilter_ocvU = cv2.UMat(np.single(pf))
-
-        if cupy:
-            self._postfilter_cp = cp.asarray(self._postfilter)
+    # def calibrate_cupy(self, img, findCarrier = True):
+    #     assert cupy, "No CuPy present"
+    #     ''' define grids '''
+    #     self.N = len(img[0, :, :])
+    #     self._dx = self.pixelsize / self.magnification  # Sampling in image plane
+    #     self._res = self.wavelength / (2 * self.NA)
+    #     self._oversampling = self._res / self._dx
+    #     self._dk = self._oversampling / (self.N / 2)  # Sampling in frequency plane
+    #     self._k = np.arange(-self._dk * self.N / 2, self._dk * self.N / 2, self._dk, dtype=np.double)
+    #     [self._kx, self._ky] = np.meshgrid(np.single(self._k), np.single(self._k))
+    #     self._dx2 = self._dx / 2
+    #
+    #     if self.N != self._lastN:
+    #         self._allocate_arrays()
+    #
+    #     self.kr = np.sqrt(self._kx ** 2 + self._ky ** 2, dtype=np.single)
+    #     kxbig = np.arange(-self._dk * self.N, self._dk * self.N, self._dk, dtype=np.single)
+    #     [kxbig, kybig] = np.meshgrid(kxbig, kxbig)
+    #
+    #     '''Separate bands into DC and 3 high frequency bands'''
+    #     M = exp(1j * 2 * pi / 7) ** ((np.arange(0, 4)[:, np.newaxis]) * np.arange(0, 7))
+    #
+    #     sum_prepared_comp = np.zeros((4, self.N, self.N), dtype=np.complex)
+    #     wienerfilter = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
+    #
+    #     for k in range(0, 4):
+    #         for l in range(0, 7):
+    #             sum_prepared_comp[k, :, :] = sum_prepared_comp[k, :, :] + img[l, :, :] * M[k, l]
+    #
+    #     # minimum search radius in k-space
+    #     mask1 = (self.kr > 1.9 * self.eta)
+    #
+    #     # find parameters
+    #     ckx = np.zeros((3, 1), dtype=np.single)
+    #     cky = np.zeros((3, 1), dtype=np.single)
+    #     p = np.zeros((3, 1), dtype=np.single)
+    #     ampl = np.zeros((3, 1), dtype=np.single)
+    #
+    #     if findCarrier:
+    #         # minimum search radius in k-space
+    #         mask1 = (self.kr > 1.9 * self.eta)
+    #         for i in range(0, 3):
+    #             self.kx[i], self.ky[i] = self._coarseFindCarrier_cupy(sum_prepared_comp[0, :, :],
+    #                                                           sum_prepared_comp[i + 1, :, :], mask1)
+    #     for i in range(0, 3):
+    #         ckx[i], cky[i], p[i], ampl[i] = self._refineCarrier_cupy(sum_prepared_comp[0, :, :],
+    #                                                               sum_prepared_comp[i + 1, :, :], self.kx[i], self.ky[i])
+    #     self.kx = ckx # store found kx, ky, p and ampl values
+    #     self.ky = cky
+    #     self.p = p
+    #     self.ampl = ampl
+    #
+    #     ph = np.single(2 * pi * self.NA / self.wavelength)
+    #
+    #     xx = np.arange(-self._dx2 * self.N, self._dx2 * self.N, self._dx2, dtype=np.single)
+    #     yy = xx
+    #
+    #     if self.axial:
+    #         A = 6
+    #     else:
+    #         A = 12
+    #
+    #     for idx_p in range(0, 7):
+    #         pstep = idx_p * 2 * pi / 7
+    #         if self.usemodulation:
+    #             self._reconfactor[idx_p, :, :] = (1 + 4 / ampl[0] * np.outer(exp(1j * ph * cky[0] * yy), exp(
+    #                         1j * (ph * ckx[0] * xx - pstep + p[0]))).real
+    #                                               + 4 / ampl[1] * np.outer(exp(1j * ph * cky[1] * yy), exp(
+    #                         1j * (ph * ckx[1] * xx - 2 * pstep + p[1]))).real
+    #                                               + 4 / ampl[2] * np.outer(exp(1j * ph * cky[2] * yy), exp(
+    #                         1j * (ph * ckx[2] * xx - 3 * pstep + p[2]))).real)
+    #         else:
+    #             self._reconfactor[idx_p, :, :] = (1 + A * np.outer(exp(1j * ph * cky[0] * yy),
+    #                                                                exp(1j * (ph * ckx[0] * xx - pstep + p[0]))).real
+    #                                               + A * np.outer(exp(1j * ph * cky[1] * yy),
+    #                                                              exp(1j * (ph * ckx[1] * xx - 2 * pstep + p[1]))).real
+    #                                               + A * np.outer(exp(1j * ph * cky[2] * yy),
+    #                                                              exp(1j * (ph * ckx[2] * xx - 3 * pstep + p[2]))).real)
+    #
+    #     # calculate pre-filter factors
+    #
+    #     mask2 = (self.kr < 2)
+    #
+    #     self._prefilter = np.single((self._tfm(self.kr, mask2) * self._attm(self.kr, mask2)))
+    #     self._prefilter = fft.fftshift(self._prefilter)
+    #
+    #     mtot = np.full((2 * self.N, 2 * self.N), False)
+    #
+    #     for i in range(0, 3):
+    #         krbig = sqrt((kxbig - ckx[i]) ** 2 + (kybig - cky[i]) ** 2)
+    #         mask = (krbig < 2)
+    #         mtot = mtot | mask
+    #         wienerfilter = (wienerfilter + mask * ((self._tfm(krbig, mask)) ** 2) * self._attm(krbig, mask))
+    #         krbig = sqrt((kxbig + ckx[i]) ** 2 + (kybig + cky[i]) ** 2)
+    #         mask = (krbig < 2)
+    #         mtot = mtot | mask
+    #         wienerfilter = (wienerfilter + mask * ((self._tfm(krbig, mask) ** 2) * self._attm(krbig, mask)))
+    #
+    #     krbig = sqrt(kxbig ** 2 + kybig ** 2)
+    #     mask = (krbig < 2)
+    #     mtot = mtot | mask
+    #     wienerfilter = (wienerfilter + mask * self._tfm(krbig, mask) ** 2 * self._attm(krbig, mask))
+    #
+    #     self.wienerfilter = wienerfilter
+    #
+    #     if self.debug:
+    #         plt.figure()
+    #         plt.title('WienerFilter')
+    #         plt.imshow(wienerfilter)
+    #
+    #     kmax = 1 * (2 + sqrt(ckx[0] ** 2 + cky[0] ** 2))
+    #     wienerfilter = mtot * (1 - krbig * mtot / kmax) / (wienerfilter * mtot + self.w ** 2)
+    #     self._postfilter = fft.fftshift(wienerfilter)
+    #     if self.debug:
+    #         plt.figure()
+    #         plt.title('WienerFilter')
+    #         plt.imshow(wienerfilter)
+    #
+    #     if self.cleanup:
+    #         imgo = self.reconstruct_fftw(img)
+    #         kernel = np.ones((5, 5), np.uint8)
+    #         mask_tmp = abs(fft.fftshift(fft.fft2(imgo))) > (10 * gaussian_filter(abs(fft.fftshift(fft.fft2(imgo))), 5))
+    #         mask = scipy.ndimage.morphology.binary_dilation(np.single(mask_tmp), kernel)
+    #         mask[self.N - 12:self.N + 13, self.N - 12:self.N + 13] = np.full((25, 25), False)
+    #         mask_shift = (fft.fftshift(mask))
+    #         self._postfilter[mask_shift.astype(bool)] = 0
+    #
+    #     if opencv:
+    #         self._reconfactorU = [cv2.UMat(self._reconfactor[idx_p, :, :]) for idx_p in range(0, 7)]
+    #         self._prefilter_ocv = np.single(cv2.dft(fft.ifft2(self._prefilter).real))
+    #         pf = np.zeros((self.N, self.N, 2), dtype=np.single)
+    #         pf[:, :, 0] = self._prefilter
+    #         pf[:, :, 1] = self._prefilter
+    #         self._prefilter_ocvU = cv2.UMat(np.single(pf))
+    #         self._postfilter_ocv = np.single(cv2.dft(fft.ifft2(self._postfilter).real))
+    #         pf = np.zeros((2 * self.N, 2 * self.N, 2), dtype=np.single)
+    #         pf[:, :, 0] = self._postfilter
+    #         pf[:, :, 1] = self._postfilter
+    #         self._postfilter_ocvU = cv2.UMat(np.single(pf))
+    #
+    #     if cupy:
+    #         self._postfilter_cp = cp.asarray(self._postfilter)
 
     def reconstruct_fftw(self, img):
         imf = fft.fft2(img) * self._prefilter

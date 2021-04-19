@@ -192,7 +192,13 @@ else:
 
 start_time = time.time()
 h.cleanup = False
-h.debug = False
+h.debug = True
+h.NA = 1.1
+h.magnification = 60
+h.wavelength = 0.525
+h.beta = 0.99
+h.alpha = 0.3
+h.n = 1.33
 
 ''' Calibration cupy'''
 try:
