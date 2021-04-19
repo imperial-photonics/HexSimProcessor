@@ -18,7 +18,6 @@ Nsize = 512
 ''' Initialize '''
 # h=HexSimProcessor
 h = HexSimProcessor()
-h.debug = False
 h.cleanup = True
 h.N = (Nsize // 2) * 2
 h.NA = 0.75
@@ -197,7 +196,7 @@ h.debug = False
 
 ''' Calibration cupy'''
 try:
-    h.calibrate_cupy(img2[140:147, :, :])
+    h.calibrate(img2[140:147, :, :])
     elapsed_time = time.time() - start_time
     print(f'Calibration time: {elapsed_time:5f}s ')
     start_time = time.time()
@@ -283,7 +282,7 @@ hb.beta = 0.999
 hb.alpha = 0.3
 hb.w = 0.3
 hb.debug = False
-hb.cleanup = True
+hb.cleanup = False
 
 hb.calibrate(imgbeads)
 

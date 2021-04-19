@@ -73,7 +73,7 @@ class HexSimProcessor:
         if cupy:
             # self._prefilter_cp = cp.zeros((self.N, self.N), dtype=np.single)
             # self._postfilter_cp = cp.zeros((2 * self.N, 2 * self.N), dtype=np.single)
-            self._carray_cp = cp.zeros((7, 2 * self.N, self.N + 1), dtype=np.complex)
+            self._carray_cp = cp.zeros((7, 2 * self.N, self.N + 1), dtype=np.complex64)
             # self._reconfactor_cp = cp.zeros((7, 2 * self.N, 2 * self.N), dtype=np.single)
             self._bigimgstore_cp = cp.zeros((2 * self.N, 2 * self.N), dtype=np.single)
         if opencv:
@@ -97,7 +97,7 @@ class HexSimProcessor:
         self._oversampling = self._res / self._dx
         self._dk = self._oversampling / (self.N / 2)  # Sampling in frequency plane
         self._k = np.arange(-self._dk * self.N / 2, self._dk * self.N / 2, self._dk, dtype=np.double)
-        [self._kx, self._ky] = np.meshgrid(self._k, self._k)
+        [self._kx, self._ky] = np.meshgrid(np.single(self._k), np.single(self._k))
         self._dx2 = self._dx / 2
 
         self.kr = np.sqrt(self._kx ** 2 + self._ky ** 2, dtype=np.single)
@@ -235,7 +235,7 @@ class HexSimProcessor:
         self._oversampling = self._res / self._dx
         self._dk = self._oversampling / (self.N / 2)  # Sampling in frequency plane
         self._k = np.arange(-self._dk * self.N / 2, self._dk * self.N / 2, self._dk, dtype=np.double)
-        [self._kx, self._ky] = np.meshgrid(self._k, self._k)
+        [self._kx, self._ky] = np.meshgrid(np.single(self._k), np.single(self._k))
         self._dx2 = self._dx / 2
 
         if self.N != self._lastN:
@@ -686,7 +686,7 @@ class HexSimProcessor:
 
         band = band0_common * band1_common
 
-        ixfz, Kx, Ky = self._zoomf(band, self.N, self._kx[pyc0, pxc0], self._ky[pyc0, pxc0], 25, self._dk * self.N)
+        ixfz, Kx, Ky = self._zoomf(band, self.N, np.single(self._k[pxc0]), np.single(self._k[pyc0]), 25, self._dk * self.N)
         pyc, pxc = self._findPeak(abs(ixfz))
 
         if self.debug:
@@ -758,7 +758,7 @@ class HexSimProcessor:
 
         band = band0_common*band1_common
 
-        ixfz, Kx, Ky = self._zoomf_cupy(band, self.N, cp.asarray(self._kx)[pyc0, pxc0], cp.asarray(self._ky)[pyc0, pxc0], 25, self._dk * self.N)
+        ixfz, Kx, Ky = self._zoomf_cupy(band, self.N, np.single(self._k[pxc0]), np.single(self._k[pyc0]), 25, self._dk * self.N)
         pyc, pxc = self._findPeak_cupy(abs(ixfz))
 
         if self.debug:

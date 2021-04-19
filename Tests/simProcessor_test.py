@@ -387,7 +387,10 @@ if isPlot:
     plt.imshow(img1x2o, cmap=cm.hot, clim=(0.0, 0.7 * img1x2o.max()))
 
 img1x2 = hexTo2Beam(img2[140:147, :, :],2)
-h2.calibrate_cupy(img1x2)
+try:
+    h2.calibrate_cupy(img1x2)
+except AssertionError as error:
+    print(error)
 
 img1x2o = h2.reconstruct_fftw(img1x2)
 if isPlot:
