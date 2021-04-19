@@ -230,18 +230,10 @@ class HexSimProcessor:
 
         if self.debug:
             plt.figure()
-            plt.imshow(kmax)
-
-        if self.debug:
-            plt.figure()
             plt.title('WienerFilter')
             plt.imshow(wienerfilter)
 
         wienerfilter = mtot * (1 - krbig * mtot / kmax) / (wienerfilter * mtot + self.w ** 2)
-        if self.debug:
-            plt.figure()
-            plt.title('WienerFilter')
-            plt.imshow(wienerfilter)
         self._postfilter = fft.fftshift(wienerfilter)
 
         if self.cleanup:

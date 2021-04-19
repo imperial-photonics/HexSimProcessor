@@ -192,7 +192,7 @@ else:
 
 start_time = time.time()
 h.cleanup = False
-h.debug = True
+h.debug = False
 h.NA = 1.1
 h.magnification = 60
 h.wavelength = 0.525
