@@ -120,14 +120,17 @@ class HexSimProcessor:
             imgs = np.single(img)
 
         '''Separate bands into DC and 3 high frequency bands'''
-        M = exp(1j * 2 * pi / 7) ** ((np.arange(0, 4)[:, np.newaxis]) * np.arange(0, 7))
+        M = np.complex64(exp(1j * 2 * pi / 7) ** ((np.arange(0, 4)[:, np.newaxis]) * np.arange(0, 7)))
 
-        sum_prepared_comp = np.zeros((4, self.N, self.N), dtype=np.complex64)
         wienerfilter = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
 
-        for k in range(0, 4):
-            for l in range(0, 7):
-                sum_prepared_comp[k, :, :] = sum_prepared_comp[k, :, :] + imgs[l, :, :] * M[k, l]
+        if useCupy:
+            sum_prepared_comp = cp.dot(cp.asarray(M), cp.asarray(imgs).transpose((1, 0, 2))).get()
+        else:
+            sum_prepared_comp = np.zeros((4, self.N, self.N), dtype=np.complex64)
+            for k in range(0, 4):
+                for l in range(0, 7):
+                    sum_prepared_comp[k, :, :] = sum_prepared_comp[k, :, :] + imgs[l, :, :] * M[k, l]
 
         # find parameters
         ckx = np.zeros((3, 1), dtype=np.single)
@@ -179,12 +182,20 @@ class HexSimProcessor:
         for idx_p in range(0, 7):
             pstep = idx_p * 2 * pi / 7
             if self.usemodulation:
-                self._reconfactor[idx_p, :, :] = (1 + 4 / ampl[0] * np.outer(exp(1j * ph * cky[0] * yy), exp(
-                    1j * (ph * ckx[0] * xx - pstep + p[0]))).real
-                                                  + 4 / ampl[1] * np.outer(exp(1j * ph * cky[1] * yy), exp(
-                            1j * (ph * ckx[1] * xx - 2 * pstep + p[1]))).real
-                                                  + 4 / ampl[2] * np.outer(exp(1j * ph * cky[2] * yy), exp(
-                            1j * (ph * ckx[2] * xx - 3 * pstep + p[2]))).real)
+                if useCupy:
+                    self._reconfactor[idx_p, :, :] = (1 + 4 / float(ampl[0])  * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[0] * yy - pstep + p[0]))),
+                                                                             cp.exp(cp.asarray(1j * ph * ckx[0] * xx))).real
+                                                  + 4 / float(ampl[1]) * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[1] * yy - 2 * pstep + p[1]))),
+                                                                           cp.exp(cp.asarray(1j * ph * ckx[1] * xx))).real
+                                                  + 4 / float(ampl[2]) * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[2] * yy - 3 * pstep + p[2]))),
+                                                                           cp.exp(cp.asarray(1j * ph * ckx[2] * xx))).real).get()
+                else:
+                    self._reconfactor[idx_p, :, :] = (1 + 4 / float(ampl[0])  * np.outer(np.exp(1j * (ph * cky[0] * yy - pstep + p[0])),
+                                                                           np.exp(1j * ph * ckx[0] * xx)).real
+                                                  + 4 / float(ampl[1]) * np.outer(np.exp(1j * (ph * cky[1] * yy - 2 * pstep + p[1])),
+                                                                           np.exp(1j * ph * ckx[1] * xx)).real
+                                                  + 4 / float(ampl[2]) * np.outer(np.exp(1j * (ph * cky[2] * yy - 3 * pstep + p[2])),
+                                                                           np.exp(1j * ph * ckx[2] * xx)).real)
             else:
                 self._reconfactor[idx_p, :, :] = (1 + A * np.outer(exp(1j * ph * cky[0] * yy),
                                                                    exp(1j * (ph * ckx[0] * xx - pstep + p[0]))).real
@@ -204,17 +215,17 @@ class HexSimProcessor:
 
         th = np.linspace(0, 2 * pi, 360, dtype = np.single)
         inv = np.geterr()['invalid']
-        kmaxth = 2;
+        kmaxth = 2
 
         for i in range(0, 3):
             krbig = sqrt((kxbig - ckx[i]) ** 2 + (kybig - cky[i]) ** 2)
             mask = (krbig < 2)
             mtot = mtot | mask
-            wienerfilter = wienerfilter + mask * ((self._tfm(krbig, mask) ** 2) * self._attm(krbig, mask))
+            wienerfilter[mask] = wienerfilter[mask] + (self._tf(krbig[mask]) ** 2) * self._att(krbig[mask])
             krbig = sqrt((kxbig + ckx[i]) ** 2 + (kybig + cky[i]) ** 2)
             mask = (krbig < 2)
             mtot = mtot | mask
-            wienerfilter = wienerfilter + mask * ((self._tfm(krbig, mask) ** 2) * self._attm(krbig, mask))
+            wienerfilter[mask] = wienerfilter[mask] + (self._tf(krbig[mask]) ** 2) * self._att(krbig[mask])
             np.seterr(invalid='ignore')  # Silence sqrt warnings for kmaxth calculations
             kmaxth = np.fmax(kmaxth, np.fmax(ckx[i] * np.cos(th) + cky[i] * np.sin(th) +
                                         np.sqrt(4 - (ckx[i] * np.sin(th)) ** 2 - (cky[i] * np.cos(th)) ** 2 +
@@ -230,7 +241,7 @@ class HexSimProcessor:
         krbig = sqrt(kxbig ** 2 + kybig ** 2)
         mask = (krbig < 2)
         mtot = mtot | mask
-        wienerfilter = (wienerfilter + mask * self._tfm(krbig, mask) ** 2 * self._attm(krbig, mask))
+        wienerfilter[mask] = (wienerfilter[mask] + self._tf(krbig[mask]) ** 2 * self._att(krbig[mask]))
         self.wienerfilter = wienerfilter
 
         thbig = np.arctan2(kybig, kxbig)
@@ -563,7 +574,7 @@ class HexSimProcessor:
         if self.debug:
             plt.figure()
             plt.title('Find carrier')
-            plt.imshow(ixf, cmap=plt.cm.gray)
+            plt.imshow(ixf, cmap = plt.get_cmap('gray'))
 
         # pyc0, pxc0 = self._findPeak((ixf - gaussian_filter(ixf, 20)) * mask)
         pyc0, pxc0 = self._findPeak(ixf * mask)
@@ -631,7 +642,7 @@ class HexSimProcessor:
         if self.debug:
             plt.figure()
             plt.title('Find carrier')
-            plt.imshow(ixf.get(), cmap=plt.cm.gray)
+            plt.imshow(ixf.get(), cmap=plt.get_cmap('gray'))
 
         pyc0, pxc0 = self._findPeak_cupy((ixf - gaussian_filter_cupy(ixf, 20)) * mask)
         kx = self._dk * (pxc0 - self.N / 2)
@@ -723,12 +734,9 @@ class HexSimProcessor:
         return atf
 
     def _attm(self, kr, mask):
-        atf = np.zeros_like(kr).flatten()
-        mf = mask.flatten()
-        atff = atf.flatten()
-        krf = kr.flatten()[mf]
-        atff[mf] = self._att(krf)
-        return atff.reshape(kr.shape)
+        atf = np.zeros_like(kr)
+        atf[mask] = self._att(kr[mask])
+        return atf
 
     def _tf(self, kr):
         otf = (1 / pi * (arccos(kr / 2) - kr / 2 * sqrt(1 - kr ** 2 / 4)))
@@ -740,21 +748,15 @@ class HexSimProcessor:
         return otf
 
     def _tfm(self, kr, mask):
-        otf = np.zeros_like(kr).flatten()
-        mf = mask.flatten()
-        otff = otf.flatten()
-        krf = kr.flatten()[mf]
-        otff[mf] = self._tf(krf)
-        return otff.reshape(kr.shape)
+        otf = np.zeros_like(kr)
+        otf[mask] = self._tf(kr[mask])
+        return otf
 
     def _tfm_cupy(self, kr, mask):
         xp = cp.get_array_module(kr)
-        otf = xp.zeros_like(kr).flatten()
-        mf = mask.flatten()
-        otff = otf.flatten()
-        krf = kr.flatten()[mf]
-        otff[mf] = self._tf(krf)
-        return otff.reshape(kr.shape)
+        otf = xp.zeros_like(kr)
+        otf[mask] = self._tf_cupy(kr[mask])
+        return otf
 
     def _pyczt(self, x, k=None, w=None, a=None):
         # Chirp z-transform ported from Matlab implementation (see comment below)

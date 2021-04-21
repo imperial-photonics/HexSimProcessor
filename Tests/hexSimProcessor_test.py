@@ -300,10 +300,13 @@ try:
 except AssertionError as error:
     print(error)
 
+from SIM_processing import hexSimProcessor
+hexSimProcessor.opencv = False
+
 import cProfile
 profile = cProfile.Profile()
 profile.enable()
-hb.calibrate(imgbeads)
+h.calibrate_cupy(img2)
 profile.disable()
 profile.dump_stats('hexsim.prof')
 # Use "snakeviz hexsim.prof" in terminal window for graphical view of results
@@ -311,8 +314,9 @@ profile.dump_stats('hexsim.prof')
 try:
     import line_profiler
     lprofile = line_profiler.LineProfiler()
+    lprofile.add_function(HexSimProcessor._tfm)
     wrapper = lprofile(h._calibrate)
-    wrapper(img2)
+    wrapper(img2, useCupy = True)
     lprofile.disable()
     lprofile.print_stats(output_unit=1e-3)
 except:

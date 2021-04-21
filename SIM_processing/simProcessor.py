@@ -149,8 +149,8 @@ class SimProcessor(HexSimProcessor):
         for idx_p in range(0, 3):
             pstep = idx_p * 2 * pi / 3
             if self.usemodulation:
-                self._reconfactor[idx_p, :, :] = (1 + 4 / ampl * np.outer(exp(1j * ph * cky * yy), exp(
-                    1j * (ph * ckx * xx - pstep + p))).real )
+                self._reconfactor[idx_p, :, :] = (1 + 4 / ampl * cp.outer(cp.exp(cp.asarray(1j * (ph * cky * yy - pstep + p))),
+                                                                          cp.exp(cp.asarray(1j * ph * ckx * xx))).real ).get()
             else:
                 self._reconfactor[idx_p, :, :] = (1 + A * np.outer(exp(1j * ph * cky * yy),
                                                                    exp(1j * (ph * ckx * xx - pstep + p))).real)

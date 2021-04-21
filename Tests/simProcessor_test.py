@@ -159,9 +159,13 @@ except AssertionError as error:
 try:
     h2.calibrate_cupy(imgstack)
     start_time = time.time()
-    h2.calibrate_cupy(imgsum)
+    h2.calibrate_cupy(imgstack)
     elapsed_time = time.time() - start_time
     print(f'Calibrate cupy time: {elapsed_time:5f}s ')
+    start_time = time.time()
+    imgo = h2.batchreconstruct_cupy(imgstack)
+    elapsed_time = time.time() - start_time
+    print(f'Batchreconstruct cupy time: {elapsed_time:5f}s ')
     start_time = time.time()
     imgo = h2.batchreconstruct_cupy(imgstack)
     elapsed_time = time.time() - start_time
@@ -186,13 +190,11 @@ try:
     import line_profiler
     lprofile = line_profiler.LineProfiler()
     wrapper = lprofile(h2._calibrate)
-    wrapper(imgstack)
+    wrapper(imgstack, useCupy = True)
     lprofile.disable()
     lprofile.print_stats(output_unit=1e-3)
 except:
     print('no line_profiler')
-
-
 
 plt.show()
 
