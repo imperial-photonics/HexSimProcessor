@@ -244,8 +244,10 @@ class HexSimProcessor:
         wienerfilter[mask] = (wienerfilter[mask] + self._tf(krbig[mask]) ** 2 * self._att(krbig[mask]))
         self.wienerfilter = wienerfilter
 
-        thbig = np.arctan2(kybig, kxbig)
-        kmax = np.interp(thbig, th, kmaxth, period=2 * pi).astype(np.single)
+        if useCupy and 'interp' in dir(cp):  # interp not available in cupy version < 9.0.0
+            kmax = cp.interp(cp.arctan2(cp.asarray(kybig), cp.asarray(kxbig)), cp.asarray(th), cp.asarray(kmaxth), period=2 * pi).astype(np.single).get()
+        else:
+            kmax = np.interp(np.arctan2(kybig, kxbig), th, kmaxth, period=2 * pi).astype(np.single)
 
         if self.debug:
             plt.figure()
