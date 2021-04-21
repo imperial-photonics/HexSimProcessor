@@ -73,6 +73,7 @@ class SimProcessor(HexSimProcessor):
         self._lastN = self.N
 
     def _calibrate(self, img, findCarrier = True, useCupy = False):
+        assert len(img) > 2
         self.N = len(img[0, :, :])
         if self.N != self._lastN:
             self._allocate_arrays()
@@ -83,26 +84,33 @@ class SimProcessor(HexSimProcessor):
         self._oversampling = self._res / self._dx
         self._dk = self._oversampling / (self.N / 2)  # Sampling in frequency plane
         self._k = np.arange(-self._dk * self.N / 2, self._dk * self.N / 2, self._dk, dtype=np.double)
-        [self._kx, self._ky] = np.meshgrid(self._k, self._k)
         self._dx2 = self._dx / 2
 
-        self.kr = np.sqrt(self._kx ** 2 + self._ky ** 2, dtype=np.single)
+        self._kr = np.sqrt(self._k ** 2 + self._k[:,np.newaxis] ** 2, dtype=np.single)
         kxbig = np.arange(-self._dk * self.N, self._dk * self.N, self._dk, dtype=np.single)
-        [kxbig, kybig] = np.meshgrid(kxbig, kxbig)
+        kybig = kxbig[:,np.newaxis]
+
+        '''Sum input images if there are more than 3'''
+        if len(img) > 3:
+            imgs = np.zeros((3, self.N, self.N), dtype=np.single)
+            for i in range(3):
+                imgs[i, :, :] = np.sum(img[i:(len(img) // 3) * 3:3, :, :], 0, dtype = np.single)
+        else:
+            imgs = np.single(img)
 
         '''Separate bands into DC and 1 high frequency band'''
         M = exp(1j * 2 * pi / 3) ** ((np.arange(0, 2)[:, np.newaxis]) * np.arange(0, 3))
 
-        sum_prepared_comp = np.zeros((2, self.N, self.N), dtype=np.complex)
+        sum_prepared_comp = np.zeros((2, self.N, self.N), dtype=np.complex64)
         wienerfilter = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
 
         for k in range(0, 2):
             for l in range(0, 3):
-                sum_prepared_comp[k, :, :] = sum_prepared_comp[k, :, :] + img[l, :, :] * M[k, l]
+                sum_prepared_comp[k, :, :] = sum_prepared_comp[k, :, :] + imgs[l, :, :] * M[k, l]
 
         if findCarrier:
             # minimum search radius in k-space
-            mask1 = (self.kr > 1.9 * self.eta)
+            mask1 = (self._kr > 1.9 * self.eta)
             if not useCupy:
                 self.kx, self.ky = self._coarseFindCarrier(sum_prepared_comp[0, :, :],
                                                               sum_prepared_comp[1, :, :], mask1)
@@ -149,9 +157,9 @@ class SimProcessor(HexSimProcessor):
 
         # calculate pre-filter factors
 
-        mask2 = (self.kr < 2)
+        mask2 = (self._kr < 2)
 
-        self._prefilter = np.single((self._tfm(self.kr, mask2) * self._attm(self.kr, mask2)))
+        self._prefilter = np.single((self._tfm(self._kr, mask2) * self._attm(self._kr, mask2)))
         self._prefilter = fft.fftshift(self._prefilter)
 
         mtot = np.full((2 * self.N, 2 * self.N), False)
@@ -159,15 +167,15 @@ class SimProcessor(HexSimProcessor):
         krbig = sqrt((kxbig - ckx) ** 2 + (kybig - cky) ** 2)
         mask = (krbig < 2)
         mtot = mtot | mask
-        wienerfilter = (wienerfilter + mask * ((self._tfm(krbig, mask)) ** 2) * self._attm(krbig, mask))
+        wienerfilter = wienerfilter + mask * (self._tfm(krbig, mask) ** 2) * self._attm(krbig, mask)
         krbig = sqrt((kxbig + ckx) ** 2 + (kybig + cky) ** 2)
         mask = (krbig < 2)
         mtot = mtot | mask
-        wienerfilter = (wienerfilter + mask * ((self._tfm(krbig, mask) ** 2) * self._attm(krbig, mask)))
+        wienerfilter = wienerfilter + mask * (self._tfm(krbig, mask) ** 2) * self._attm(krbig, mask)
         krbig = sqrt(kxbig ** 2 + kybig ** 2)
         mask = (krbig < 2)
         mtot = mtot | mask
-        wienerfilter = (wienerfilter + mask * self._tfm(krbig, mask) ** 2 * self._attm(krbig, mask))
+        wienerfilter = wienerfilter + mask * (self._tfm(krbig, mask) ** 2) * self._attm(krbig, mask)
         self.wienerfilter = wienerfilter
 
         if self.debug:
@@ -175,7 +183,7 @@ class SimProcessor(HexSimProcessor):
             plt.title('WienerFilter')
             plt.imshow(wienerfilter)
 
-        th = np.linspace(0, 2 * pi, 360)
+        th = np.linspace(0, 2 * pi, 360, dtype = np.single)
         inv = np.geterr()['invalid']
         np.seterr(invalid = 'ignore')
         kmaxth = np.fmax(2, np.fmax(ckx * np.cos(th) + cky * np.sin(th) +
@@ -187,7 +195,7 @@ class SimProcessor(HexSimProcessor):
         np.seterr(invalid = inv)
 
         thbig = np.arctan2(kybig,kxbig)
-        kmax = np.interp(thbig,th,kmaxth, period = 2 * pi)
+        kmax = np.single(np.interp(thbig,th,kmaxth, period = 2 * pi))
         wienerfilter = mtot * (1 - krbig * mtot / kmax) / (wienerfilter * mtot + self.w ** 2)
 
         self._postfilter = fft.fftshift(wienerfilter)

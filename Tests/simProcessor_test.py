@@ -9,6 +9,8 @@ import time
 
 # import cProfile
 from SIM_processing.hexSimProcessor import HexSimProcessor
+from SIM_processing.simProcessor import SimProcessor, opencv
+import SIM_processing.simProcessor as sp
 
 plt.close('all')
 isPlot = False
@@ -49,8 +51,6 @@ def hexTo2Beam(imgin, num):
         imgout[1, :, :] = imgout[1, :, :] + M[num * 3 + 1][i] * imgin[i, :, :]
         imgout[2, :, :] = imgout[2, :, :] + M[num * 3 + 2][i] * imgin[i, :, :]
     return imgout
-
-from SIM_processing.simProcessor import SimProcessor
 
 h2 = SimProcessor()
 h2.debug = False
@@ -139,18 +139,11 @@ imgstack = np.zeros((120, Nsize, Nsize), dtype = np.single)
 for i in range (40):
     imgstack[3*i:3*i+3, :, :] = hexTo2Beam(img2[7*i:7*i+7, :, :],0)
 
-imgsum = np.zeros((3, Nsize, Nsize), dtype = np.single)
-
-imgsum[0, :, :] = np.sum(imgstack[0:120:3,:,:],0)
-imgsum[1, :, :] = np.sum(imgstack[1:120:3,:,:],0)
-imgsum[2, :, :] = np.sum(imgstack[2:120:3,:,:],0)
-
 h2.debug = False
-h2.calibrate_cupy(imgstack[60:63, :, :])
 
 try:
     start_time = time.time()
-    h2.calibrate(imgsum)
+    h2.calibrate(imgstack)
     elapsed_time = time.time() - start_time
     print(f'Calibrate time: {elapsed_time:5f}s ')
     start_time = time.time()
@@ -164,6 +157,7 @@ except AssertionError as error:
     print(error)
 
 try:
+    h2.calibrate_cupy(imgstack)
     start_time = time.time()
     h2.calibrate_cupy(imgsum)
     elapsed_time = time.time() - start_time
@@ -177,6 +171,28 @@ try:
         plt.imshow(imgo[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgo[20, :, :].max()))
 except AssertionError as error:
     print(error)
+
+import cProfile
+profile = cProfile.Profile()
+profile.enable()
+h2.calibrate(imgstack)
+profile.disable()
+profile.dump_stats('2beamsim.prof')
+# Use "snakeviz 2beamsim.prof" in terminal window for graphical view of results
+
+# sp.opencv = False
+
+try:
+    import line_profiler
+    lprofile = line_profiler.LineProfiler()
+    wrapper = lprofile(h2._calibrate)
+    wrapper(imgstack)
+    lprofile.disable()
+    lprofile.print_stats(output_unit=1e-3)
+except:
+    print('no line_profiler')
+
+
 
 plt.show()
 

@@ -300,4 +300,22 @@ try:
 except AssertionError as error:
     print(error)
 
+import cProfile
+profile = cProfile.Profile()
+profile.enable()
+hb.calibrate(imgbeads)
+profile.disable()
+profile.dump_stats('hexsim.prof')
+# Use "snakeviz hexsim.prof" in terminal window for graphical view of results
+
+try:
+    import line_profiler
+    lprofile = line_profiler.LineProfiler()
+    wrapper = lprofile(h._calibrate)
+    wrapper(img2)
+    lprofile.disable()
+    lprofile.print_stats(output_unit=1e-3)
+except:
+    print('no line_profiler')
+
 plt.show()
