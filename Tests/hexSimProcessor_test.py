@@ -301,7 +301,7 @@ except AssertionError as error:
     print(error)
 
 from SIM_processing import hexSimProcessor
-hexSimProcessor.opencv = False
+hexSimProcessor.opencv = True
 
 import cProfile
 profile = cProfile.Profile()

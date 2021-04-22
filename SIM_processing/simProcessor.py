@@ -196,8 +196,11 @@ class SimProcessor(HexSimProcessor):
                                             ckx * cky * np.sin(2 * th))))
         np.seterr(invalid = inv)
 
-        thbig = np.arctan2(kybig,kxbig)
-        kmax = np.single(np.interp(thbig,th,kmaxth, period = 2 * pi))
+        if useCupy and 'interp' in dir(cp):  # interp not available in cupy version < 9.0.0
+            kmax = cp.interp(cp.arctan2(cp.asarray(kybig), cp.asarray(kxbig)), cp.asarray(th), cp.asarray(kmaxth), period=2 * pi).astype(np.single).get()
+        else:
+            kmax = np.interp(np.arctan2(kybig, kxbig), th, kmaxth, period=2 * pi).astype(np.single)
+
         wienerfilter = mtot * (1 - krbig * mtot / kmax) / (wienerfilter * mtot + self.w ** 2)
 
         self._postfilter = fft.fftshift(wienerfilter)
