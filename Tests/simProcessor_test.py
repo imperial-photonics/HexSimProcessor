@@ -9,8 +9,7 @@ import time
 
 # import cProfile
 from SIM_processing.hexSimProcessor import HexSimProcessor
-from SIM_processing.simProcessor import SimProcessor, opencv
-import SIM_processing.simProcessor as sp
+from SIM_processing.simProcessor import SimProcessor
 
 plt.close('all')
 isPlot = False
@@ -176,21 +175,24 @@ try:
 except AssertionError as error:
     print(error)
 
+from SIM_processing import simProcessor
+simProcessor.opencv = False # turn off opencv processing and calculation of lookuptables
+
 import cProfile
 profile = cProfile.Profile()
 profile.enable()
 h2.calibrate(imgstack)
+# h2.calibrate_cupy(imgstack) # To test cupy processing
 profile.disable()
 profile.dump_stats('2beamsim.prof')
 # Use "snakeviz 2beamsim.prof" in terminal window for graphical view of results
-
-# sp.opencv = False
 
 try:
     import line_profiler
     lprofile = line_profiler.LineProfiler()
     wrapper = lprofile(h2._calibrate)
-    wrapper(imgstack, useCupy = True)
+    wrapper(imgstack, useCupy = False)
+    # wrapper(imgstack, useCupy = True) # To test cupy processing
     lprofile.disable()
     lprofile.print_stats(output_unit=1e-3)
 except:

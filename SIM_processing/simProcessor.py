@@ -111,19 +111,19 @@ class SimProcessor(HexSimProcessor):
         if findCarrier:
             # minimum search radius in k-space
             mask1 = (self._kr > 1.9 * self.eta)
-            if not useCupy:
-                self.kx, self.ky = self._coarseFindCarrier(sum_prepared_comp[0, :, :],
-                                                              sum_prepared_comp[1, :, :], mask1)
-            else:
+            if useCupy:
                 self.kx, self.ky = self._coarseFindCarrier_cupy(sum_prepared_comp[0, :, :],
-                                                              sum_prepared_comp[1, :, :], mask1)
+                                                                sum_prepared_comp[1, :, :], mask1)
+            else:
+                self.kx, self.ky = self._coarseFindCarrier(sum_prepared_comp[0, :, :],
+                                                           sum_prepared_comp[1, :, :], mask1)
 
-        if not useCupy:
-            ckx, cky, p, ampl = self._refineCarrier(sum_prepared_comp[0, :, :],
-                                                                  sum_prepared_comp[1, :, :], self.kx, self.ky)
-        else:
+        if useCupy:
             ckx, cky, p, ampl = self._refineCarrier_cupy(sum_prepared_comp[0, :, :],
-                                                                  sum_prepared_comp[1, :, :], self.kx, self.ky)
+                                                         sum_prepared_comp[1, :, :], self.kx, self.ky)
+        else:
+            ckx, cky, p, ampl = self._refineCarrier(sum_prepared_comp[0, :, :],
+                                                    sum_prepared_comp[1, :, :], self.kx, self.ky)
 
         self.kx = ckx # store found kx, ky, p and ampl values
         self.ky = cky
@@ -141,19 +141,21 @@ class SimProcessor(HexSimProcessor):
         xx = np.arange(-self._dx2 * self.N, self._dx2 * self.N, self._dx2, dtype=np.single)
         yy = xx
 
-        if self.axial:
-            A = 6
+        if self.usemodulation:
+            A = ampl
         else:
-            A = 12
+            A = 1
 
         for idx_p in range(0, 3):
             pstep = idx_p * 2 * pi / 3
-            if self.usemodulation:
-                self._reconfactor[idx_p, :, :] = (1 + 4 / ampl * cp.outer(cp.exp(cp.asarray(1j * (ph * cky * yy - pstep + p))),
-                                                                          cp.exp(cp.asarray(1j * ph * ckx * xx))).real ).get()
+            if useCupy:
+                self._reconfactor[idx_p, :, :] = (
+                        1 + 4 / A * cp.outer(cp.exp(cp.asarray(1j * (ph * cky * yy - pstep + p))),
+                                             cp.exp(cp.asarray(1j * ph * ckx * xx))).real).get()
             else:
-                self._reconfactor[idx_p, :, :] = (1 + A * np.outer(exp(1j * ph * cky * yy),
-                                                                   exp(1j * (ph * ckx * xx - pstep + p))).real)
+                self._reconfactor[idx_p, :, :] = (
+                        1 + 4 / A * np.outer(np.exp(1j * (ph * cky * yy - pstep + p)),
+                                             np.exp(1j * ph * ckx * xx)).real)
 
         # calculate pre-filter factors
 
@@ -167,15 +169,15 @@ class SimProcessor(HexSimProcessor):
         krbig = sqrt((kxbig - ckx) ** 2 + (kybig - cky) ** 2)
         mask = (krbig < 2)
         mtot = mtot | mask
-        wienerfilter = wienerfilter + mask * (self._tfm(krbig, mask) ** 2) * self._attm(krbig, mask)
+        wienerfilter[mask] = wienerfilter[mask] + (self._tf(krbig[mask]) ** 2) * self._att(krbig[mask])
         krbig = sqrt((kxbig + ckx) ** 2 + (kybig + cky) ** 2)
         mask = (krbig < 2)
         mtot = mtot | mask
-        wienerfilter = wienerfilter + mask * (self._tfm(krbig, mask) ** 2) * self._attm(krbig, mask)
+        wienerfilter[mask] = wienerfilter[mask] + (self._tf(krbig[mask]) ** 2) * self._att(krbig[mask])
         krbig = sqrt(kxbig ** 2 + kybig ** 2)
         mask = (krbig < 2)
         mtot = mtot | mask
-        wienerfilter = wienerfilter + mask * (self._tfm(krbig, mask) ** 2) * self._attm(krbig, mask)
+        wienerfilter[mask] = wienerfilter[mask] + (self._tf(krbig[mask]) ** 2) * self._att(krbig[mask])
         self.wienerfilter = wienerfilter
 
         if self.debug:

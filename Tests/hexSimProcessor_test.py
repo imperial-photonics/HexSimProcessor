@@ -306,7 +306,8 @@ hexSimProcessor.opencv = False
 import cProfile
 profile = cProfile.Profile()
 profile.enable()
-h.calibrate_cupy(img2)
+h.calibrate(img2)
+# h.calibrate_cupy(img2) # To test cupy processing
 profile.disable()
 profile.dump_stats('hexsim.prof')
 # Use "snakeviz hexsim.prof" in terminal window for graphical view of results
@@ -316,7 +317,8 @@ try:
     lprofile = line_profiler.LineProfiler()
     lprofile.add_function(HexSimProcessor._tfm)
     wrapper = lprofile(h._calibrate)
-    wrapper(img2, useCupy = True)
+    wrapper(img2)
+    # wrapper(img2, useCupy = True) # To test cupy processing
     lprofile.disable()
     lprofile.print_stats(output_unit=1e-3)
 except:

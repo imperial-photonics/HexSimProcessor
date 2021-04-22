@@ -142,19 +142,19 @@ class HexSimProcessor:
             # minimum search radius in k-space
             mask1 = (self._kr > 1.9 * self.eta)
             for i in range(0, 3):
-                if not useCupy:
-                    self.kx[i], self.ky[i] = self._coarseFindCarrier(sum_prepared_comp[0, :, :],
-                                                            sum_prepared_comp[i + 1, :, :], mask1)
-                else:
+                if useCupy:
                     self.kx[i], self.ky[i] = self._coarseFindCarrier_cupy(sum_prepared_comp[0, :, :],
                                                             sum_prepared_comp[i + 1, :, :], mask1)
+                else:
+                    self.kx[i], self.ky[i] = self._coarseFindCarrier(sum_prepared_comp[0, :, :],
+                                                            sum_prepared_comp[i + 1, :, :], mask1)
         for i in range(0, 3):
-            if not useCupy:
-                ckx[i], cky[i], p[i], ampl[i] = self._refineCarrier(sum_prepared_comp[0, :, :],
+            if useCupy:
+                ckx[i], cky[i], p[i], ampl[i] = self._refineCarrier_cupy(sum_prepared_comp[0, :, :],
                                                                     sum_prepared_comp[i + 1, :, :], self.kx[i],
                                                                     self.ky[i])
             else:
-                ckx[i], cky[i], p[i], ampl[i] = self._refineCarrier_cupy(sum_prepared_comp[0, :, :],
+                ckx[i], cky[i], p[i], ampl[i] = self._refineCarrier(sum_prepared_comp[0, :, :],
                                                                     sum_prepared_comp[i + 1, :, :], self.kx[i],
                                                                     self.ky[i])
 
@@ -174,35 +174,31 @@ class HexSimProcessor:
         xx = np.arange(-self._dx2 * self.N, self._dx2 * self.N, self._dx2, dtype=np.single)
         yy = xx
 
-        if self.axial:
-            A = 6
+        if self.usemodulation:
+            A = [float(ampl[i]) for i in range(3)]
         else:
-            A = 12
+            if self.axial:
+                A = [6.0 for i in range(3)]
+            else:
+                A = [12.0 for i in range(3)]
 
         for idx_p in range(0, 7):
             pstep = idx_p * 2 * pi / 7
             if self.usemodulation:
                 if useCupy:
-                    self._reconfactor[idx_p, :, :] = (1 + 4 / float(ampl[0])  * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[0] * yy - pstep + p[0]))),
+                    self._reconfactor[idx_p, :, :] = (1 + 4 / A[0]  * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[0] * yy - pstep + p[0]))),
                                                                              cp.exp(cp.asarray(1j * ph * ckx[0] * xx))).real
-                                                  + 4 / float(ampl[1]) * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[1] * yy - 2 * pstep + p[1]))),
+                                                  + 4 / A[1] * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[1] * yy - 2 * pstep + p[1]))),
                                                                            cp.exp(cp.asarray(1j * ph * ckx[1] * xx))).real
-                                                  + 4 / float(ampl[2]) * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[2] * yy - 3 * pstep + p[2]))),
+                                                  + 4 / A[2] * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[2] * yy - 3 * pstep + p[2]))),
                                                                            cp.exp(cp.asarray(1j * ph * ckx[2] * xx))).real).get()
                 else:
-                    self._reconfactor[idx_p, :, :] = (1 + 4 / float(ampl[0])  * np.outer(np.exp(1j * (ph * cky[0] * yy - pstep + p[0])),
+                    self._reconfactor[idx_p, :, :] = (1 + 4 / A[0]  * np.outer(np.exp(1j * (ph * cky[0] * yy - pstep + p[0])),
                                                                            np.exp(1j * ph * ckx[0] * xx)).real
-                                                  + 4 / float(ampl[1]) * np.outer(np.exp(1j * (ph * cky[1] * yy - 2 * pstep + p[1])),
+                                                  + 4 / A[1] * np.outer(np.exp(1j * (ph * cky[1] * yy - 2 * pstep + p[1])),
                                                                            np.exp(1j * ph * ckx[1] * xx)).real
-                                                  + 4 / float(ampl[2]) * np.outer(np.exp(1j * (ph * cky[2] * yy - 3 * pstep + p[2])),
+                                                  + 4 / A[2] * np.outer(np.exp(1j * (ph * cky[2] * yy - 3 * pstep + p[2])),
                                                                            np.exp(1j * ph * ckx[2] * xx)).real)
-            else:
-                self._reconfactor[idx_p, :, :] = (1 + A * np.outer(exp(1j * ph * cky[0] * yy),
-                                                                   exp(1j * (ph * ckx[0] * xx - pstep + p[0]))).real
-                                                  + A * np.outer(exp(1j * ph * cky[1] * yy),
-                                                                 exp(1j * (ph * ckx[1] * xx - 2 * pstep + p[1]))).real
-                                                  + A * np.outer(exp(1j * ph * cky[2] * yy),
-                                                                 exp(1j * (ph * ckx[2] * xx - 3 * pstep + p[2]))).real)
 
         # calculate pre-filter factors
 
