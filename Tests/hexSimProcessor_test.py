@@ -8,24 +8,29 @@ import numpy as np
 import time
 
 # import cProfile
-from hexSimProcessor import HexSimProcessor
+from SIM_processing.hexSimProcessor import HexSimProcessor
 
 plt.close('all')
-isPlot = True
+isPlot = False
 N = 10  # number of iterations
 Nsize = 512
 
 ''' Initialize '''
 # h=HexSimProcessor
 h = HexSimProcessor()
-h.debug = True
+h.debug = False
 h.cleanup = True
 h.N = (Nsize // 2) * 2
+h.NA = 0.75
+h.magnification = 40
+h.wavelength = 0.560
+h.beta = 0.99
+h.n = 1.0
+h.debug = False
 
 ''' Read Image '''
 data_folder = Path(os.path.dirname(__file__))
-# filename  = "./SIMdata_2019-11-05_15-21-42.tif"
-filename  = "./S_1.252021_0209_1828_Raw_Image.tif"
+filename  = "./SIMdata_2019-11-05_15-21-42.tif"
 filepath = os.path.join(data_folder, filename)
 # print(data_folder)
 # quit()
@@ -44,6 +49,7 @@ if isPlot:
 
 ''' Calibration Cupy'''
 try:
+    h.calibrate_cupy(img1)
     start_time = time.time()
     h.calibrate_cupy(img1)
     elapsed_time = time.time() - start_time
@@ -59,12 +65,12 @@ print(f'Calibration time: {elapsed_time:5f}s ')
 
 ''' Recontruction '''
 
-# ''' FFTW '''
-# start_time = time.time()
-# for i in range(0, 10):
-#     imga = h.reconstruct_fftw(img1)
-# elapsed_time = time.time() - start_time
-# print(f'FFTW Reconstruction time: {elapsed_time / 10:5f}s ')
+''' FFTW '''
+start_time = time.time()
+for i in range(0, 10):
+    imga = h.reconstruct_fftw(img1)
+elapsed_time = time.time() - start_time
+print(f'FFTW Reconstruction time: {elapsed_time / 10:5f}s ')
 
 ''' rFFTW '''
 start_time = time.time()
@@ -111,7 +117,7 @@ try:
     print(f'CuPy Reconstruction time: {elapsed_time / N:5f}s ')
     if isPlot:
         plt.figure()
-        plt.imshow(imgb.get(), cmap=cm.gray)
+        plt.imshow(imgb, cmap=cm.gray)
 except AssertionError as error:
     print(error)
 
@@ -123,7 +129,6 @@ elapsed_time = time.time() - start_time
 print(f'FFTW Reconstructframe time: {elapsed_time / (7 * N):5f}s ')
 if isPlot:
     plt.figure()
-    plt.title('Reconstructframe:FFTW')
     plt.imshow(imga, cmap=cm.hot, clim=(0.0, 0.7 * imga.max()))
 
 ''' rFFTW '''
@@ -134,7 +139,6 @@ elapsed_time = time.time() - start_time
 print(f'rFFTW Reconstructframe time: {elapsed_time / (7 * N):5f}s ')
 if isPlot:
     plt.figure()
-    plt.title('Reconstructframe:rFFTW')
     plt.imshow(imga, cmap=cm.hot, clim=(0.0, 0.7 * imga.max()))
 
 ''' ocv '''
@@ -146,7 +150,6 @@ try:
     print(f'ocv Reconstruct frame time: {elapsed_time / (7 * N):5f}s ')
     if isPlot:
         plt.figure()
-        plt.title('Reconstructframe:opeCV')
         plt.imshow(imga, cmap=cm.hot, clim=(0.0, 0.7 * imga.max()))
 except AssertionError as error:
     print(error)
@@ -160,7 +163,6 @@ try:
     print(f'ocvU Reconstruct frame time: {elapsed_time / (7 * N):5f}s ')
     if isPlot:
         plt.figure()
-        plt.title('Reconstructframe:opeCV GPU')
         plt.imshow(imga.get(), cmap=cm.hot, clim=(0.0, 0.7 * imga.get().max()))
 except AssertionError as error:
     print(error)
@@ -174,7 +176,6 @@ try:
     print(f'CuPy Reconstructframe time: {elapsed_time / (7 * N):5f}s ')
     if isPlot:
         plt.figure()
-        plt.title('Reconstructframe:CUPY')
         plt.imshow(imgb.get(), cmap=cm.hot, clim=(0.0, 0.7 * imgb.get().max()))
 except AssertionError as error:
     print(error)
@@ -192,10 +193,17 @@ else:
 
 start_time = time.time()
 h.cleanup = False
+h.debug = False
+h.NA = 1.1
+h.magnification = 60
+h.wavelength = 0.525
+h.beta = 0.99
+h.alpha = 0.3
+h.n = 1.33
 
 ''' Calibration cupy'''
 try:
-    h.calibrate_cupy(img2[140:147, :, :])
+    h.calibrate(img2[140:147, :, :])
     elapsed_time = time.time() - start_time
     print(f'Calibration time: {elapsed_time:5f}s ')
     start_time = time.time()
@@ -245,10 +253,10 @@ try:
     print(f'Batch Reconstruction compact time(CuPy): {elapsed_time:5f}s ')
     if isPlot:
         plt.figure()
-        plt.imshow(imgout[20, :, :].get(), cmap=cm.hot, clim=(0.0, 0.7 * imgout[20, :, :].max()))
+        plt.imshow(imgout[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgout[20, :, :].max()))
     if isPlot:
         plt.figure()
-        plt.imshow(imgout[20, :, :].get() - imgouta[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgout[20, :, :].max()))
+        plt.imshow(imgout[20, :, :] - imgouta[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgout[20, :, :].max()))
 except AssertionError as error:
     print(error)
 
@@ -260,7 +268,7 @@ try:
     print(f'Batch Reconstruction time(CuPy): {elapsed_time:5f}s ')
     if isPlot:
         plt.figure()
-        plt.imshow(imgout[20, :, :].get(), cmap=cm.hot, clim=(0.0, 0.7 * imgout[20, :, :].max()))
+        plt.imshow(imgout[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgout[20, :, :].max()))
 except AssertionError as error:
     print(error)
 
@@ -274,13 +282,14 @@ hb = HexSimProcessor()
 hb.N = 512
 hb.magnification = 40
 hb.NA = 0.75
+hb.wavelength = 0.560
 hb.n = 1.0
 hb.eta = 0.7
 hb.beta = 0.999
-hb.alpha = 0.1
+hb.alpha = 0.3
 hb.w = 0.3
-hb.debug = True
-hb.cleanup = True
+hb.debug = False
+hb.cleanup = False
 
 hb.calibrate(imgbeads)
 
@@ -291,5 +300,29 @@ try:
         plt.imshow(imgb, cmap=cm.hot, clim=(0.0, 0.25 * imgb.max()))
 except AssertionError as error:
     print(error)
+
+from SIM_processing import hexSimProcessor
+hexSimProcessor.opencv = True
+
+import cProfile
+profile = cProfile.Profile()
+profile.enable()
+h.calibrate(img2)
+# h.calibrate_cupy(img2) # To test cupy processing
+profile.disable()
+profile.dump_stats('hexsim.prof')
+# Use "snakeviz hexsim.prof" in terminal window for graphical view of results
+
+try:
+    import line_profiler
+    lprofile = line_profiler.LineProfiler()
+    lprofile.add_function(HexSimProcessor._tfm)
+    wrapper = lprofile(h._calibrate)
+    wrapper(img2)
+    # wrapper(img2, useCupy = True) # To test cupy processing
+    lprofile.disable()
+    lprofile.print_stats(output_unit=1e-3)
+except:
+    print('no line_profiler')
 
 plt.show()
