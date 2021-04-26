@@ -184,21 +184,20 @@ class HexSimProcessor:
 
         for idx_p in range(0, 7):
             pstep = idx_p * 2 * pi / 7
-            if self.usemodulation:
-                if useCupy:
-                    self._reconfactor[idx_p, :, :] = (1 + 4 / A[0]  * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[0] * yy - pstep + p[0]))),
-                                                                             cp.exp(cp.asarray(1j * ph * ckx[0] * xx))).real
+            if useCupy:
+                self._reconfactor[idx_p, :, :] = (1 + 4 / A[0]  * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[0] * yy - pstep + p[0]))),
+                                                                           cp.exp(cp.asarray(1j * ph * ckx[0] * xx))).real
                                                   + 4 / A[1] * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[1] * yy - 2 * pstep + p[1]))),
-                                                                           cp.exp(cp.asarray(1j * ph * ckx[1] * xx))).real
+                                                                        cp.exp(cp.asarray(1j * ph * ckx[1] * xx))).real
                                                   + 4 / A[2] * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[2] * yy - 3 * pstep + p[2]))),
-                                                                           cp.exp(cp.asarray(1j * ph * ckx[2] * xx))).real).get()
-                else:
-                    self._reconfactor[idx_p, :, :] = (1 + 4 / A[0]  * np.outer(np.exp(1j * (ph * cky[0] * yy - pstep + p[0])),
+                                                                        cp.exp(cp.asarray(1j * ph * ckx[2] * xx))).real).get()
+            else:
+                self._reconfactor[idx_p, :, :] = (1 + 4 / A[0]  * np.outer(np.exp(1j * (ph * cky[0] * yy - pstep + p[0])),
                                                                            np.exp(1j * ph * ckx[0] * xx)).real
                                                   + 4 / A[1] * np.outer(np.exp(1j * (ph * cky[1] * yy - 2 * pstep + p[1])),
-                                                                           np.exp(1j * ph * ckx[1] * xx)).real
+                                                                        np.exp(1j * ph * ckx[1] * xx)).real
                                                   + 4 / A[2] * np.outer(np.exp(1j * (ph * cky[2] * yy - 3 * pstep + p[2])),
-                                                                           np.exp(1j * ph * ckx[2] * xx)).real)
+                                                                        np.exp(1j * ph * ckx[2] * xx)).real)
 
         # calculate pre-filter factors
 

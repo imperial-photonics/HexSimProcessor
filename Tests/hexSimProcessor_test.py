@@ -11,7 +11,7 @@ import time
 from SIM_processing.hexSimProcessor import HexSimProcessor
 
 plt.close('all')
-isPlot = False
+isPlot = True
 N = 10  # number of iterations
 Nsize = 512
 
@@ -57,11 +57,15 @@ try:
 except AssertionError as error:
     print(error)
 
+
+
 ''' Calibration '''
 start_time = time.time()
 h.calibrate(img1)
 elapsed_time = time.time() - start_time
 print(f'Calibration time: {elapsed_time:5f}s ')
+
+# tif.imwrite('test_reconfactor.tif',h._reconfactor)
 
 ''' Recontruction '''
 
@@ -176,7 +180,7 @@ try:
     print(f'CuPy Reconstructframe time: {elapsed_time / (7 * N):5f}s ')
     if isPlot:
         plt.figure()
-        plt.imshow(imgb.get(), cmap=cm.hot, clim=(0.0, 0.7 * imgb.get().max()))
+        plt.imshow(imgb, cmap=cm.hot, clim=(0.0, 0.7 * imgb.max()))
 except AssertionError as error:
     print(error)
 
@@ -191,7 +195,7 @@ if Nsize != 512:
 else:
     img2 = np.single(img2)
 
-start_time = time.time()
+
 h.cleanup = False
 h.debug = False
 h.NA = 1.1
@@ -203,6 +207,7 @@ h.n = 1.33
 
 ''' Calibration cupy'''
 try:
+    start_time = time.time()
     h.calibrate(img2[140:147, :, :])
     elapsed_time = time.time() - start_time
     print(f'Calibration time: {elapsed_time:5f}s ')
@@ -227,6 +232,7 @@ start_time = time.time()
 imgouta = h.batchreconstruct(img2)
 elapsed_time = time.time() - start_time
 print(f'Batch Reconstruction time (CPU): {elapsed_time:5f}s ')
+
 
 if isPlot:
     plt.figure()
