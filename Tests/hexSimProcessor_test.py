@@ -233,23 +233,31 @@ imgouta = h.batchreconstruct(img2)
 elapsed_time = time.time() - start_time
 print(f'Batch Reconstruction time (CPU): {elapsed_time:5f}s ')
 
+start_time = time.time()
+imgoutb = h.batchreconstruct_pytorch(img2)
+elapsed_time = time.time() - start_time
+print(f'Batch Reconstruction time (Pytorch CPU): {elapsed_time:5f}s ')
 
 if isPlot:
     plt.figure()
-    plt.imshow(imgouta[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgouta[20, :, :].max()))
+    plt.imshow(imgoutb[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgouta[20, :, :].max()))
 
 start_time = time.time()
-imgoutb = h.batchreconstructcompact(img2)
+imgoutc = h.batchreconstructcompact(img2)
 elapsed_time = time.time() - start_time
 print(f'Batch Reconstruction compact time (CPU): {elapsed_time:5f}s ')
 
 if isPlot:
     plt.figure()
-    plt.imshow(imgoutb[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgoutb[20, :, :].max()))
+    plt.imshow(imgoutc[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgoutb[20, :, :].max()))
 
 if isPlot:
     plt.figure()
     plt.imshow(imgoutb[20, :, :] - imgouta[20, :, :], cmap=cm.hot)
+    plt.figure()
+    plt.imshow(imgoutb[20, :, :] - imgoutc[20, :, :], cmap=cm.hot)
+    plt.figure()
+    plt.imshow(imgouta[20, :, :] - imgoutc[20, :, :], cmap=cm.hot)
 
 ''' Batch process GPU compact'''
 try:

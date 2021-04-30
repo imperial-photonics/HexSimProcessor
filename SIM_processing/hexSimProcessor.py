@@ -18,10 +18,15 @@ except:
 
 try:
     import cv2
-
     opencv = True
 except:
     opencv = False
+
+try:
+    import torch
+    pytorch = True
+except:
+    pytorch = False
 
 try:
     import cupy as cp
@@ -474,7 +479,7 @@ class HexSimProcessor:
         nim = img.shape[0]
         r = np.mod(nim, 14)
         if r > 0:  # pad with empty frames so total number of frames is divisible by 14
-            img = np.concatenate((img, cp.zeros((14 - r, self.N, self.N), np.single)))
+            img = cp.concatenate((img, cp.zeros((14 - r, self.N, self.N), np.single)))
             nim = nim + 14 - r
         nim7 = nim // 7
         imf = cp.fft.rfft2(img) * cp.asarray(self._prefilter[:, 0:self.N // 2 + 1])
@@ -556,6 +561,38 @@ class HexSimProcessor:
 
         res = (cp.fft.irfft2(cp.fft.rfft2(imgout) * self._postfilter_cp[:, :self.N + 1])).get()
 
+        return res
+
+    def batchreconstruct_pytorch(self, img):
+        assert pytorch, "No pytorch present"
+        print(f'Torch has_cuda = {torch.has_cuda}')
+        if torch.has_cuda:
+            dev = torch.device('cuda')
+        else:
+            dev = torch.device('cpu')
+        nim = img.shape[0]
+        r = np.mod(nim, 14)
+        if r > 0:  # pad with empty frames so total number of frames is divisible by 14
+            img = np.concatenate((img, cp.zeros((14 - r, self.N, self.N), img.dtype)))
+            nim = nim + 14 - r
+        nim7 = nim // 7
+        img = torch.as_tensor(np.single(img), dtype = torch.float32, device = dev)
+        print(f'torch device {img.get_device()}')
+        imf = torch.fft.rfft2(img) * torch.as_tensor(self._prefilter[:, 0:self.N // 2 + 1], device = dev)
+
+        img2 = torch.zeros((nim, 2 * self.N, 2 * self.N), dtype = torch.float32, device = dev)
+        bcarray = torch.zeros((7, 2 * self.N, self.N + 1), dtype = torch.complex64, device = dev)
+        reconfactor_pt = torch.as_tensor(self._reconfactor, device = dev)
+        for i in range(0, nim, 7):
+            bcarray[:, 0:self.N // 2, 0:self.N // 2 + 1] = imf[i:i + 7, 0:self.N // 2, 0:self.N // 2 + 1]
+            bcarray[:, 3 * self.N // 2:2 * self.N, 0:self.N // 2 + 1] = imf[i:i + 7, self.N // 2:self.N,
+                                                                        0:self.N // 2 + 1]
+            img2[i:i + 7, :, :] = torch.fft.irfft2(bcarray) * reconfactor_pt
+
+        img3 = torch.fft.irfft(torch.fft.rfft(img2, nim, 0)[0:nim7 // 2 + 1, :, :], nim7, 0)
+
+        postfilter_pt = torch.as_tensor(self._postfilter, device = dev)
+        res = (torch.fft.irfft2(torch.fft.rfft2(img3) * postfilter_pt[:, :self.N + 1])).numpy()
         return res
 
     def _coarseFindCarrier(self, band0, band1, mask):
