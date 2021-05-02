@@ -322,13 +322,14 @@ profile.dump_stats('hexsim.prof')
 try:
     import line_profiler
     lprofile = line_profiler.LineProfiler()
-    lprofile.add_function(HexSimProcessor._tfm)
-    wrapper = lprofile(h._calibrate)
+    wrapper = lprofile(h.batchreconstruct)
     wrapper(img2)
     # wrapper(img2, useCupy = True) # To test cupy processing
     lprofile.disable()
     lprofile.print_stats(output_unit=1e-3)
 except:
     print('no line_profiler')
+
+
 
 plt.show()
