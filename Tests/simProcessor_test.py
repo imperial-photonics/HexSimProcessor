@@ -181,8 +181,8 @@ simProcessor.opencv = True # turn off opencv processing and calculation of looku
 import cProfile
 profile = cProfile.Profile()
 profile.enable()
-# h2.calibrate(imgstack)
-h2.calibrate_cupy(imgstack) # To test cupy processing
+h2.calibrate(imgstack)
+# h2.calibrate_cupy(imgstack) # To test cupy processing
 profile.disable()
 profile.dump_stats('2beamsim.prof')
 # Use "snakeviz 2beamsim.prof" in terminal window for graphical view of results
@@ -191,8 +191,8 @@ try:
     import line_profiler
     lprofile = line_profiler.LineProfiler()
     wrapper = lprofile(h2._calibrate)
-    # wrapper(imgstack, useCupy = False)
-    wrapper(imgstack, useCupy = True) # To test cupy processing
+    wrapper(imgstack, useCupy = False)
+    # wrapper(imgstack, useCupy = True) # To test cupy processing
     lprofile.disable()
     lprofile.print_stats(output_unit=1e-3)
 except:

@@ -599,7 +599,8 @@ class HexSimProcessor:
 
         band = band0_common * band1_common
 
-        ixfz, Kx, Ky = self._zoomf(band, self.N, np.single(self._k[pxc0]), np.single(self._k[pyc0]), 25, self._dk * self.N)
+        mag = 25 * self.N / 256
+        ixfz, Kx, Ky = self._zoomf(band, self.N, np.single(self._k[pxc0]), np.single(self._k[pyc0]), mag , self._dk * self.N)
         pyc, pxc = self._findPeak(abs(ixfz))
 
         if self.debug:
@@ -671,7 +672,8 @@ class HexSimProcessor:
 
         band = band0_common*band1_common
 
-        ixfz, Kx, Ky = self._zoomf_cupy(band, self.N, np.single(self._k[pxc0]), np.single(self._k[pyc0]), 25, self._dk * self.N)
+        mag = 25 * self.N / 256
+        ixfz, Kx, Ky = self._zoomf_cupy(band, slef.N, np.single(self._k[pxc0]), np.single(self._k[pyc0]), mag, self._dk * self.N)
         pyc, pxc = self._findPeak_cupy(abs(ixfz))
 
         if self.debug:
@@ -809,7 +811,6 @@ class HexSimProcessor:
             w = exp(-1j * 2 * pi / k)
         if a is None:
             a = 1.
-
         # %------- Length for power-of-two fft.
 
         nfft = int(2 ** np.ceil(log2(abs(m + k - 1))))
@@ -835,7 +836,6 @@ class HexSimProcessor:
         # %------- Final multiply.
 
         g = g[m - 1:m + k - 1, :] * ww[m - 1:m + k - 1]
-
         if oldm == 1:
             g = g.transpose()
 
