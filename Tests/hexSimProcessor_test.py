@@ -233,11 +233,18 @@ imgouta = h.batchreconstruct(img2)
 elapsed_time = time.time() - start_time
 print(f'Batch Reconstruction time (CPU): {elapsed_time:5f}s ')
 
+imgoutb = h.batchreconstructcompact_pytorch(img2)
+start_time = time.time()
+imgoutb = h.batchreconstructcompact_pytorch(img2)
+elapsed_time = time.time() - start_time
+print(f'Image size: {img2.shape}, Batch Reconstruction Compact time (Pytorch): {elapsed_time:5f}s ')
+h.empty_cache()
+
 imgoutb = h.batchreconstruct_pytorch(img2)
 start_time = time.time()
 imgoutb = h.batchreconstruct_pytorch(img2)
 elapsed_time = time.time() - start_time
-print(f'Batch Reconstruction time (Pytorch): {elapsed_time:5f}s ')
+print(f'Image size: {img2.shape}, Batch Reconstruction time (Pytorch): {elapsed_time:5f}s ')
 
 start_time = time.time()
 h.empty_cache()
@@ -283,10 +290,13 @@ except AssertionError as error:
 
 ''' Batch process GPU '''
 try:
+    h.debug = True
+    imgout = h.batchreconstruct_cupy(img2)
     start_time = time.time()
     imgout = h.batchreconstruct_cupy(img2)
+    h.debug = False
     elapsed_time = time.time() - start_time
-    print(f'Batch Reconstruction time(CuPy): {elapsed_time:5f}s ')
+    print(f'Image size: {img2.shape}, Batch Reconstruction time(CuPy): {elapsed_time:5f}s ')
     if isPlot:
         plt.figure()
         plt.title("Batch cupy")

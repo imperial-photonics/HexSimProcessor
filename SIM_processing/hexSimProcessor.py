@@ -475,7 +475,7 @@ class HexSimProcessor:
 
     def batchreconstruct_cupy(self, img):
         assert cupy, "No CuPy present"
-        cp._default_memory_pool.free_all_blocks()
+        mempool.free_all_blocks()
         img = cp.asarray(img, dtype=np.float32)
         nim = img.shape[0]
         r = np.mod(nim, 14)
@@ -484,9 +484,6 @@ class HexSimProcessor:
             nim = nim + 14 - r
         nim7 = nim // 7
         imf = cp.fft.rfft2(img) * cp.asarray(self._prefilter[:, 0:self.N // 2 + 1])
-
-        del img
-        cp._default_memory_pool.free_all_blocks()
 
         if self.debug:
             print(mempool.used_bytes())
@@ -504,7 +501,7 @@ class HexSimProcessor:
         del imf
         del bcarray
         del reconfactor_cp
-        cp._default_memory_pool.free_all_blocks()
+        mempool.free_all_blocks()
 
         if self.debug:
             print(mempool.used_bytes())
@@ -512,7 +509,7 @@ class HexSimProcessor:
 
         img3 = cp.fft.irfft(cp.fft.rfft(img2, nim, 0)[0:nim7 // 2 + 1, :, :], nim7, 0)
         del img2
-        cp._default_memory_pool.free_all_blocks()
+        mempool.free_all_blocks()
         if self.debug:
             print(mempool.used_bytes())
             print(mempool.total_bytes())
@@ -521,7 +518,7 @@ class HexSimProcessor:
 
     def batchreconstructcompact_cupy(self, img):
         assert cupy, "No CuPy present"
-        cp._default_memory_pool.free_all_blocks()
+        mempool.free_all_blocks()
         img = cp.asarray(img, dtype=np.float32)
         nim = img.shape[0]
         r = np.mod(nim, 14)
@@ -530,9 +527,6 @@ class HexSimProcessor:
             nim = nim + 14 - r
         nim7 = nim // 7
         imf = cp.fft.rfft2(img) * cp.asarray(self._prefilter[:, 0:self.N // 2 + 1])
-
-        del img
-        cp._default_memory_pool.free_all_blocks()
 
         img2 = cp.zeros((nim, 2 * self.N, 2 * self.N), dtype=np.single)
         bcarray = cp.zeros((7, 2 * self.N, self.N + 1), dtype=np.complex64)
@@ -545,7 +539,7 @@ class HexSimProcessor:
 
         del bcarray
         del reconfactor_cp
-        cp._default_memory_pool.free_all_blocks()
+        mempool.free_all_blocks()
 
         imgout = cp.zeros((nim7, 2 * self.N, 2 * self.N), dtype=np.single)
         imf = cp.fft.rfft(img2[:, 0:self.N, 0:self.N], nim, 0)[:nim7 // 2 + 1, :, :]
@@ -558,10 +552,47 @@ class HexSimProcessor:
         imgout[:, self.N:2 * self.N, self.N:2 * self.N] = cp.fft.irfft(imf, nim7, 0)
 
         del imf
-        cp._default_memory_pool.free_all_blocks()
+        mempool.free_all_blocks()
 
         res = (cp.fft.irfft2(cp.fft.rfft2(imgout) * self._postfilter_cp[:, :self.N + 1])).get()
+        return res
 
+    def batchreconstructcompact_pytorch(self, img):
+        assert pytorch, "No pytorch present"
+        if torch.has_cuda:
+            dev = torch.device('cuda')
+        else:
+            dev = torch.device('cpu')
+        nim = img.shape[0]
+        r = np.mod(nim, 14)
+        if r > 0:  # pad with empty frames so total number of frames is divisible by 14
+            img = np.concatenate((img, cp.zeros((14 - r, self.N, self.N), img.dtype)))
+            nim = nim + 14 - r
+        nim7 = nim // 7
+        img = torch.as_tensor(np.single(img), dtype = torch.float32, device = dev)
+        imf = torch.fft.rfft2(img) * torch.as_tensor(self._prefilter[:, 0:self.N // 2 + 1], device = dev)
+
+        img2 = torch.zeros((nim, 2 * self.N, 2 * self.N), dtype = torch.float32, device = dev)
+        bcarray = torch.zeros((7, 2 * self.N, self.N + 1), dtype = torch.complex64, device = dev)
+        reconfactor_pt = torch.as_tensor(self._reconfactor, device = dev)
+        for i in range(0, nim, 7):
+            bcarray[:, 0:self.N // 2, 0:self.N // 2 + 1] = imf[i:i + 7, 0:self.N // 2, 0:self.N // 2 + 1]
+            bcarray[:, 3 * self.N // 2:2 * self.N, 0:self.N // 2 + 1] = imf[i:i + 7, self.N // 2:self.N,
+                                                                        0:self.N // 2 + 1]
+            img2[i:i + 7, :, :] = torch.fft.irfft2(bcarray) * reconfactor_pt
+
+        img3 = torch.zeros((nim7, 2 * self.N, 2 * self.N), dtype = torch.float32, device = dev)
+        imf = torch.fft.rfft(img2[:, 0:self.N, 0:self.N], nim, 0)[:nim7 // 2 + 1, :, :]
+        img3[:, 0:self.N, 0:self.N] = torch.fft.irfft(imf, nim7, 0)
+        imf = torch.fft.rfft(img2[:, self.N:2 * self.N, 0:self.N], nim, 0)[:nim7 // 2 + 1, :, :]
+        img3[:, self.N:2 * self.N, 0:self.N] = torch.fft.irfft(imf, nim7, 0)
+        imf = torch.fft.rfft(img2[:, 0:self.N, self.N:2 * self.N], nim, 0)[:nim7 // 2 + 1, :, :]
+        img3[:, 0:self.N, self.N:2 * self.N] = torch.fft.irfft(imf, nim7, 0)
+        imf = torch.fft.rfft(img2[:, self.N:2 * self.N, self.N:2 * self.N], nim, 0)[:nim7 // 2 + 1, :, :]
+        img3[:, self.N:2 * self.N, self.N:2 * self.N] = torch.fft.irfft(imf, nim7, 0)
+
+        postfilter_pt = torch.as_tensor(self._postfilter, device = dev)
+        res = (torch.fft.irfft2(torch.fft.rfft2(img3) * postfilter_pt[:, :self.N + 1])).cpu().numpy()
         return res
 
     def batchreconstruct_pytorch(self, img):
@@ -577,7 +608,6 @@ class HexSimProcessor:
             nim = nim + 14 - r
         nim7 = nim // 7
         img = torch.as_tensor(np.single(img), dtype = torch.float32, device = dev)
-        print(f'torch device {img.get_device()}')
         imf = torch.fft.rfft2(img) * torch.as_tensor(self._prefilter[:, 0:self.N // 2 + 1], device = dev)
 
         img2 = torch.zeros((nim, 2 * self.N, 2 * self.N), dtype = torch.float32, device = dev)
@@ -602,7 +632,7 @@ class HexSimProcessor:
         print(torch.cuda.memory_reserved())
         print(mempool.used_bytes())
         print(mempool.total_bytes())
-        cp._default_memory_pool.free_all_blocks()
+        mempool.free_all_blocks()
         print(mempool.used_bytes())
         print(mempool.total_bytes())
 
