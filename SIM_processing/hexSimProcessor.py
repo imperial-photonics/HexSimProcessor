@@ -6,10 +6,17 @@ import scipy.io
 from numpy import exp, pi, sqrt, log2, arccos
 from scipy.ndimage import gaussian_filter
 
+
+try:
+    import torch
+    pytorch = True
+except ModuleNotFoundError as err:
+    print(err)
+    pytorch = False
+
 try:
     import pyfftw
     import pyfftw.interfaces.numpy_fft as fft
-
     pyfftw.config.NUM_THREADS = multiprocessing.cpu_count()
     pyfftw.interfaces.cache.enable()
     fftw = True
@@ -21,12 +28,6 @@ try:
     opencv = True
 except:
     opencv = False
-
-try:
-    import torch
-    pytorch = True
-except:
-    pytorch = False
 
 try:
     import cupy as cp
@@ -565,7 +566,6 @@ class HexSimProcessor:
 
     def batchreconstruct_pytorch(self, img):
         assert pytorch, "No pytorch present"
-        print(f'Torch has_cuda = {torch.has_cuda}')
         if torch.has_cuda:
             dev = torch.device('cuda')
         else:
@@ -592,8 +592,19 @@ class HexSimProcessor:
         img3 = torch.fft.irfft(torch.fft.rfft(img2, nim, 0)[0:nim7 // 2 + 1, :, :], nim7, 0)
 
         postfilter_pt = torch.as_tensor(self._postfilter, device = dev)
-        res = (torch.fft.irfft2(torch.fft.rfft2(img3) * postfilter_pt[:, :self.N + 1])).numpy()
+        res = (torch.fft.irfft2(torch.fft.rfft2(img3) * postfilter_pt[:, :self.N + 1])).cpu().numpy()
         return res
+
+    def empty_cache(self):
+        assert pytorch, "No pytorch present"
+        print(torch.cuda.memory_reserved())
+        torch.cuda.empty_cache()
+        print(torch.cuda.memory_reserved())
+        print(mempool.used_bytes())
+        print(mempool.total_bytes())
+        cp._default_memory_pool.free_all_blocks()
+        print(mempool.used_bytes())
+        print(mempool.total_bytes())
 
     def _coarseFindCarrier(self, band0, band1, mask):
         otf_exclude_min_radius = 0.5 # Min Radius of the circular region around DC that is to be excluded from the cross-correlation calculation

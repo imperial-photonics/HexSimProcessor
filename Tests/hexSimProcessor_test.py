@@ -233,13 +233,20 @@ imgouta = h.batchreconstruct(img2)
 elapsed_time = time.time() - start_time
 print(f'Batch Reconstruction time (CPU): {elapsed_time:5f}s ')
 
+imgoutb = h.batchreconstruct_pytorch(img2)
 start_time = time.time()
 imgoutb = h.batchreconstruct_pytorch(img2)
 elapsed_time = time.time() - start_time
-print(f'Batch Reconstruction time (Pytorch CPU): {elapsed_time:5f}s ')
+print(f'Batch Reconstruction time (Pytorch): {elapsed_time:5f}s ')
+
+start_time = time.time()
+h.empty_cache()
+elapsed_time = time.time() - start_time
+print(f'Empty cache (Pytorch): {elapsed_time:5f}s ')
 
 if isPlot:
     plt.figure()
+    plt.title("Batch Pytorch")
     plt.imshow(imgoutb[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgouta[20, :, :].max()))
 
 start_time = time.time()
@@ -282,9 +289,11 @@ try:
     print(f'Batch Reconstruction time(CuPy): {elapsed_time:5f}s ')
     if isPlot:
         plt.figure()
+        plt.title("Batch cupy")
         plt.imshow(imgout[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgout[20, :, :].max()))
 except AssertionError as error:
     print(error)
+h.empty_cache()
 
 ''' Beads test '''
 data_folder = Path(os.path.dirname(__file__))
