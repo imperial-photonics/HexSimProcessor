@@ -559,12 +559,12 @@ class HexSimProcessor:
         return res
 
     def _coarseFindCarrier(self, band0, band1, mask):
-        otf_exclude_min_radius = 0.5 # Min Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
+        otf_exclude_min_radius = self.eta/2 # Min Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
         maskhpf = fft.fftshift(self._kr > otf_exclude_min_radius)
 
         band0_common = fft.ifft2(fft.fft2(band0)*maskhpf)
-        band1_common = fft.ifft2(fft.fft2(band1)*maskhpf)
-        ix = band0_common * band1_common
+        # band1_common = fft.ifft2(fft.fft2(band1)*maskhpf)
+        ix = band0_common * band1
 
         ixf = np.abs(fft.fftshift(fft.fft2(fft.fftshift(ix))))
 
@@ -584,7 +584,7 @@ class HexSimProcessor:
         pxc0 = np.int(np.round(kx_in / self._dk) + self.N / 2)
         pyc0 = np.int(np.round(ky_in / self._dk) + self.N / 2)
 
-        otf_exclude_min_radius = 0.5
+        otf_exclude_min_radius = self.eta/2
         otf_exclude_max_radius = 1.5
 
         m = (self._kr < 2)
@@ -628,12 +628,12 @@ class HexSimProcessor:
         band1 = cp.asarray(band1)
         mask = cp.asarray(mask)
 
-        otf_exclude_min_radius = 0.5 # Min Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
+        otf_exclude_min_radius = self.eta/2 # Min Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
         maskhpf = cp.asarray(fft.fftshift(self._kr > otf_exclude_min_radius))
 
         band0_common = cp.fft.ifft2(cp.fft.fft2(band0)*maskhpf)
-        band1_common = cp.fft.ifft2(cp.fft.fft2(band1)*maskhpf)
-        ix = band0_common * band1_common
+        # band1_common = cp.fft.ifft2(cp.fft.fft2(band1)*maskhpf)
+        ix = band0_common * band1
 
         ixf = cp.abs(cp.fft.fftshift(cp.fft.fft2(cp.fft.fftshift(ix))))
 
@@ -655,7 +655,7 @@ class HexSimProcessor:
         pxc0 = np.int(np.round(kx_in/self._dk)+self.N//2)
         pyc0 = np.int(np.round(ky_in/self._dk)+self.N//2)
 
-        otf_exclude_min_radius = 0.5
+        otf_exclude_min_radius = self.eta/2
         otf_exclude_max_radius = 1.5
 
         # kr = cp.sqrt(cp.asarray(self._kx) ** 2 + cp.asarray(self._ky) ** 2)
@@ -673,7 +673,7 @@ class HexSimProcessor:
         band = band0_common*band1_common
 
         mag = 25 * self.N / 256
-        ixfz, Kx, Ky = self._zoomf_cupy(band, slef.N, np.single(self._k[pxc0]), np.single(self._k[pyc0]), mag, self._dk * self.N)
+        ixfz, Kx, Ky = self._zoomf_cupy(band, self.N, np.single(self._k[pxc0]), np.single(self._k[pyc0]), mag, self._dk * self.N)
         pyc, pxc = self._findPeak_cupy(abs(ixfz))
 
         if self.debug:
