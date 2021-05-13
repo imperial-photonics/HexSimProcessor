@@ -66,7 +66,11 @@ isPlot = True
 
 img1x2 = hexTo2Beam(img2[140:147, :, :],0)
 img1x2a = hexTo2Beam(img2[161:168, :, :],0)
-h2.calibrate(img1x2)
+imgstack = np.zeros((120, Nsize, Nsize), dtype = np.single)
+for i in range (40):
+    imgstack[3*i:3*i+3, :, :] = hexTo2Beam(img2[7*i:7*i+7, :, :],0)
+
+h2.calibrate(imgstack)
 h2.debug = False
 
 img1x2o = h2.reconstruct_fftw(img1x2)
@@ -133,11 +137,6 @@ if isPlot:
     plt.figure()
     plt.imshow(img1x2o, cmap=cm.hot, clim=(0.0, 0.7 * img1x2o.max()))
 
-imgstack = np.zeros((120, Nsize, Nsize), dtype = np.single)
-
-for i in range (40):
-    imgstack[3*i:3*i+3, :, :] = hexTo2Beam(img2[7*i:7*i+7, :, :],0)
-
 h2.debug = False
 
 try:
@@ -181,8 +180,8 @@ simProcessor.opencv = True # turn off opencv processing and calculation of looku
 import cProfile
 profile = cProfile.Profile()
 profile.enable()
-# h2.calibrate(imgstack)
-h2.calibrate_cupy(imgstack) # To test cupy processing
+h2.calibrate(imgstack)
+# h2.calibrate_cupy(imgstack) # To test cupy processing
 profile.disable()
 profile.dump_stats('2beamsim.prof')
 # Use "snakeviz 2beamsim.prof" in terminal window for graphical view of results
@@ -191,8 +190,8 @@ try:
     import line_profiler
     lprofile = line_profiler.LineProfiler()
     wrapper = lprofile(h2._calibrate)
-    # wrapper(imgstack, useCupy = False)
-    wrapper(imgstack, useCupy = True) # To test cupy processing
+    wrapper(imgstack, useCupy = False)
+    # wrapper(imgstack, useCupy = True) # To test cupy processing
     lprofile.disable()
     lprofile.print_stats(output_unit=1e-3)
 except:

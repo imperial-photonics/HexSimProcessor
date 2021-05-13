@@ -25,7 +25,8 @@ except:
 try:
     import torch
     pytorch = True
-except:
+except ModuleNotFoundError as err:
+    print(err)
     pytorch = False
 
 try:
@@ -596,12 +597,20 @@ class HexSimProcessor:
         return res
 
     def _coarseFindCarrier(self, band0, band1, mask):
-        otf_exclude_min_radius = 0.5 # Min Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
+        otf_exclude_min_radius = self.eta/2 # Min Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
         maskhpf = fft.fftshift(self._kr > otf_exclude_min_radius)
 
         band0_common = fft.ifft2(fft.fft2(band0)*maskhpf)
         band1_common = fft.ifft2(fft.fft2(band1)*maskhpf)
-        ix = band0_common * band1_common
+        ix = band0_common * band1
+
+        if self.debug:
+            plt.figure()
+            plt.title('Band 0')
+            plt.imshow(fft.fftshift(np.log10(np.abs(fft.fft2(band0))+100)), cmap=plt.get_cmap('gray'))
+            plt.figure()
+            plt.title('Band 1')
+            plt.imshow(fft.fftshift(np.log10(np.abs(fft.fft2(band1))+100)), cmap=plt.get_cmap('gray'))
 
         ixf = np.abs(fft.fftshift(fft.fft2(fft.fftshift(ix))))
 
@@ -621,7 +630,7 @@ class HexSimProcessor:
         pxc0 = np.int(np.round(kx_in / self._dk) + self.N / 2)
         pyc0 = np.int(np.round(ky_in / self._dk) + self.N / 2)
 
-        otf_exclude_min_radius = 0.5
+        otf_exclude_min_radius = self.eta/2;
         otf_exclude_max_radius = 1.5
 
         m = (self._kr < 2)
@@ -629,10 +638,12 @@ class HexSimProcessor:
 
         otf_mask = (self._kr > otf_exclude_min_radius) & (self._kr < otf_exclude_max_radius)
         otf_mask_for_band_common_freq = fft.fftshift(
-            otf_mask & scipy.ndimage.shift(otf_mask, (pyc0 - (self.N // 2 ), pxc0 - (self.N // 2 )), order=0))
+            otf_mask & scipy.ndimage.shift(otf_mask, (pyc0 - (self.N // 2), pxc0 - (self.N // 2 )), order=0))
         band0_common = fft.ifft2(fft.fft2(band0) / otf * otf_mask_for_band_common_freq)
-
         band1_common = fft.ifft2(fft.fft2(band1) / otf * otf_mask_for_band_common_freq)
+        otf_mask_for_band_common_freq = fft.fftshift(
+            otf_mask & scipy.ndimage.shift(otf_mask, ((self.N // 2) - pyc0, (self.N // 2 ) - pxc0), order=0))
+        band1m_common = fft.ifft2(fft.fft2(band1) / otf * otf_mask_for_band_common_freq)
 
         band = band0_common * band1_common
 
@@ -657,6 +668,16 @@ class HexSimProcessor:
 
         ampl = np.abs(cross_corr_result) * 2
         phase = np.angle(cross_corr_result)
+
+        # phase_shift_to_xpeak = exp(1j * kx * xx * 2 * pi * self.NA / self.wavelength)
+        # phase_shift_to_ypeak = exp(1j * ky * xx * 2 * pi * self.NA / self.wavelength)
+        cross_corr_result = np.sum(band0_common * band1m_common * np.outer(
+                        phase_shift_to_ypeak.conjugate(), phase_shift_to_xpeak.conjugate())) * scaling
+        amplm = np.abs(cross_corr_result) * 2
+        phasem = np.angle(cross_corr_result)
+        if self.debug:
+            print(phasem, amplm)
+
         return kx, ky, phase, ampl
 
     def _coarseFindCarrier_cupy(self, band0, band1, mask):

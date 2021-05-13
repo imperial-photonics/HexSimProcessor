@@ -130,11 +130,18 @@ class SimProcessor(HexSimProcessor):
         self.p = p
         self.ampl = ampl
 
+        ckx1, cky1, p1, ampl1 = self._refineCarrier(sum_prepared_comp[0, :, :],
+                                                    sum_prepared_comp[1, :, :], -self.kx, -self.ky)
+
         if self.debug:
             print(f'kx = {ckx}')
             print(f'ky = {cky}')
             print(f'p  = {p}')
             print(f'a  = {ampl}')
+            print(f'kx1 = {ckx1}')
+            print(f'ky1 = {cky1}')
+            print(f'p1  = {p1}')
+            print(f'a1  = {ampl1}')
 
         ph = np.single(2 * pi * self.NA / self.wavelength)
 
