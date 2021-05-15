@@ -21,12 +21,17 @@ classdef hexSimProcessor < handle
         debug=false;
         axial=false;     % if axial/radial polarised illumination is used
         usemodulation=true;     % use measured modulation values
+        sum_separated_comp;
+        k;
+        dk;
+        kx;
+        ky;
+        dx;
     end
     properties (Access = private) 
-        dx;         % Sampling in image plane
-        dk;         % Sampling in frequency plane
-        k;
-        sum_separated_comp;
+%         dx;         % Sampling in image plane
+%         dk;         % Sampling in frequency plane
+%         k;
         reconfactor;    % for reconstruction
         prefilter;     % for prefilter stage, includes otf and zero order supression
         prefilters;     % for prefilter stage, includes otf and zero order supression shifted
@@ -72,14 +77,16 @@ classdef hexSimProcessor < handle
             m = kr>1.9*o.eta; % minimum search radius in k-space 
                         
             % Find parameters
-%             tic
+             tic
             for i = 1:3
                 [kx(i),ky(i),p(i),ampl(i)] = o.findCarrier(i,m);
             end
-%             toc
+             toc
             kx
             ky
             p
+            o.kx = kx;
+            o.ky = ky;
             
             % Pre-calculate reconstruction factors
             o.reconfactor=zeros(2*o.N,2*o.N,7,'single');
@@ -106,10 +113,7 @@ classdef hexSimProcessor < handle
                     o.reconfactor(:,:,j) = (1 + A*real(exp(1i*ph*ky(1)*yy)*exp(1i*(ph*kx(1)*xx-pstep+p(1))))...
                         + A*real(exp(1i*ph*ky(2)*yy)*exp(1i*(ph*kx(2)*xx-2*pstep+p(2))))...
                         + A*real(exp(1i*ph*ky(3)*yy)*exp(1i*(ph*kx(3)*xx-3*pstep+p(3))))); 
-                end% signs do not match theory yet!
-%                 o.reconfactor(:,:,j) = (1 + A*cos(ph*(kx(1)*x2+ky(1)*y2)-pstep+p(1))...
-%                         + A*cos(ph*(kx(2)*x2+ky(2)*y2)-2*pstep+p(2))...
-%                         + A*cos(ph*(kx(3)*x2+ky(3)*y2)-3*pstep+p(3))); % signs do not match theory yet!
+                end
                 j=j+1;
             end
             
@@ -271,7 +275,10 @@ classdef hexSimProcessor < handle
         end
         
         function [kx, ky, phase, ampl] = findCarrier(o, band, mask)
-            ix=o.sum_separated_comp(:,:,band+1).*o.sum_separated_comp(:,:,1);
+            [lkx,lky] = meshgrid(o.k,o.k);
+            kr=sqrt(lkx.^2+lky.^2);
+            band0_hpf = ifft2(fft2(o.sum_separated_comp(:,:,1)).*fftshift(kr>o.eta/2));
+            ix=o.sum_separated_comp(:,:,band+1).*band0_hpf;
             ixf=abs(fftshift(fft2(fftshift(ix))));
             [pxc,pyc] = o.findPeak((ixf-imgaussfilt(ixf,20)).*mask);
             if o.debug
@@ -294,11 +301,11 @@ classdef hexSimProcessor < handle
             band0_img = o.sum_separated_comp(:,:,1);
             band1_img = o.sum_separated_comp(:,:,band+1);
 
-            otf_exclude_min_radius = 0.5; % Min Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
+            otf_exclude_min_radius = o.eta/2; % Min Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
             otf_exclude_max_radius = 1.5; % Max Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
 
-            [lkx,lky] = meshgrid(o.k,o.k);
-            kr=sqrt(lkx.^2+lky.^2);
+%             [lkx,lky] = meshgrid(o.k,o.k);
+%             kr=sqrt(lkx.^2+lky.^2);
 
             m = (kr<2);
             otf = ones(o.N,o.N,'single')*0.01;
