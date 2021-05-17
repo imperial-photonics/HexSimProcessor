@@ -2,7 +2,7 @@ close all
 h = hexSimProcessor;
 h.N = 512;          % Points to use in FFT
 h.pixelsize = 5.85;    % Camera pixel size
-h.magnification = 40; % Objective magnification
+h.magnification = 63; % Objective magnification
 h.NA = 0.75;         % Numerical aperture at sample
 n = 1;         % Refractive index at sample
 h.lambda = 0.6;   % Wavelength in um
@@ -12,7 +12,7 @@ h.beta = 0.99;      % Zero order attenuation
         % incoherent cutoff, eta=1 for normal SIM, eta=sqrt(3)/2 to maximise
         % resolution without zeros in TF
         % carrier is 2*kmax*eta
-h.eta = 0.7;
+h.eta = 0.35;
 h.w = 0.3;         % Wiener parameter
 h.cleanup = true;
 h.debug = true;
@@ -22,8 +22,8 @@ h.usemodulation = true;
 img = zeros(512,512,7,'single');
 
 for i = 1:7
-%     img(:,:,i) = single(imread('/Users/maan/OneDrive - Imperial College London/Prochip/Polimi/63X_075.tif',i));
-    img(:,:,i) = single(imread('/Users/maan/Documents/Office Projects/Prochip/HexSimProcessor/Tests/SIMdata_2019-11-05_15-21-42.tif',i));
+    img(:,:,i) = single(imread('/Users/maan/OneDrive - Imperial College London/Prochip/Polimi/63X_075.tif',i));
+%     img(:,:,i) = single(imread('/Users/maan/Documents/Office Projects/Prochip/HexSimProcessor/Tests/SIMdata_2019-11-05_15-21-42.tif',i));
 end
 
 h.calibrate(img);
@@ -47,11 +47,13 @@ kr=sqrt(lkx.^2+lky.^2);
 hpf = kr>h.eta/2;
 otf = h.tf(kr);
 hpf(kr<2) = hpf(kr<2)./otf(kr<2);
-hpf(kr>2) = 0;
+hpf(kr>1.5) = 0;
 hpf = fftshift(hpf);
 
 p0 = ifft2(fft2(h.sum_separated_comp(:,:,1)).*hpf);
 p = ifft2(fft2(img - h.sum_separated_comp(:,:,1)/7).*hpf);
+figure(60)
+imshow(fftshift(sqrt(abs(fft2(img(:,:,1)-h.sum_separated_comp(:,:,1)/7*0)))),[])
 % p = ifft2(fft2(img).*hpf);
 
 figure(61);

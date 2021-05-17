@@ -558,6 +558,44 @@ class HexSimProcessor:
 
         return res
 
+    def find_phase(self, kx, ky, img):
+        # Finds the complex correlation coefficients of the spatial frequency component at (kx, ky)
+        # in the images in img.  Run after calibration with a full set to find kx and estimated band0 component
+        img = np.float32(img)
+        hpf = self._kr > self.eta / 2
+        m = self._kr < 1.5
+        otf = np.ones((self.N, self.N), dtype = np.float32)
+        otf[m] = self._tf(self._kr[m])
+        hpf[m] = hpf[m] / otf[m]
+        hpf[np.logical_not(m)] = 0
+        hpf = fft.fftshift(hpf)
+
+        imgsum = np.sum(img, 0) / img.shape[0]
+        p = fft.ifft2(fft.fft2(img - imgsum) * hpf)
+        p0 = fft.ifft2(fft.fft2(imgsum) * hpf)
+
+        xx = np.arange(-self.N / 2 * self._dx, self.N / 2 * self._dx, self._dx, dtype=np.double)
+        phase_shift_to_xpeak = exp(1j * kx * xx * 2 * pi * self.NA / self.wavelength)
+        phase_shift_to_ypeak = exp(1j * ky * xx * 2 * pi * self.NA / self.wavelength)
+        scaling = 1 / np.sum(p0 * np.conjugate(p0))
+        cross_corr_result = np.sum(p * p0 * np.outer(
+                        phase_shift_to_ypeak, phase_shift_to_xpeak), axis = (1,2)) * scaling
+
+        if self.debug:
+            plt.figure()
+            plt.title('Find phase')
+            plt.imshow(np.sqrt(np.abs(fft.fftshift(fft.fft2(p[0, :, :] * p0)))))
+            mag = 25 * self.N / 256
+            ixfz, Kx, Ky = self._zoomf(p0 * p[0, :, :], self.N, np.single(kx), np.single(ky), mag,
+                                       self._dk * self.N)
+            plt.figure()
+            plt.title('Zoom Find phase')
+            plt.imshow(abs(ixfz))
+
+        ampl = np.abs(cross_corr_result) * 2
+        phase = np.angle(cross_corr_result)
+        return phase, ampl
+
     def _coarseFindCarrier(self, band0, band1, mask):
         otf_exclude_min_radius = self.eta/2 # Min Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
         maskhpf = fft.fftshift(self._kr > otf_exclude_min_radius)
