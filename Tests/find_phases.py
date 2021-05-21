@@ -20,28 +20,57 @@ Nsize = 512
 h = HexSimProcessor()
 h.debug = True
 h.cleanup = False
-h.magnification = 63
-# h.magnification = 40
-h.NA = 0.75
+h.usemodulation = False
 h.n = 1
 h.pixelsize = 5.85
 h.wavelength = 0.6
-h.eta = 0.35
-# h.eta = 0.70
-h.alpha = 0.1
+h.alpha = 0.3
 h.beta = 0.99
 h.w = 0.3
 
 h.N = (Nsize // 2) * 2
 
-''' Read Image '''
-img = tif.imread('/Users/maan/OneDrive - Imperial College London/Prochip/Polimi/63X_075.tif')
+''' Read Image (Imperial real data)'''
+# h.magnification = 40
+# h.NA = 0.75
+# h.eta = 0.70
 # img = tif.imread('/Users/maan/Documents/Office Projects/Prochip/HexSimProcessor/Tests/SIMdata_2019-11-05_15-21-42.tif')
+
+''' Read Image (Imperial simulated data)'''
+# h.magnification = 60
+# h.NA = 1.1
+# h.eta = 0.70
+# h.wavelength = 0.525
+# img0 = tif.imread('/Users/maan/Documents/Office Projects/Prochip/HexSimProcessor/Tests/Raw_img_stack_512_inplane.tif')
+# img = np.zeros((7, Nsize, Nsize), dtype=np.single)
+# for i in range(7):
+#     img[i, :, :] = np.sum(img0[0+i:280+i:7, :, :], 0, dtype=np.single)
+
+
+''' Read Image (Polimi 1)'''
+# h.magnification = 63
+# h.NA = 0.75
+# h.eta = 0.35
+# img = tif.imread('/Users/maan/OneDrive - Imperial College London/Prochip/Polimi/63X_075.tif')
+
+''' Read Image (Polimi 2)'''
+# h.magnification = 63
+# h.NA = 0.75
+# h.eta = 0.35
+# img = tif.imread('/Users/maan/OneDrive - Imperial College London/Prochip/Polimi/63X_075_lowfreq.tif')
+
+''' Read Image (Polimi 3)'''
+h.magnification = 60
+h.NA = 1.4
+h.eta = 0.4
+img = np.float32(tif.imread('/Users/maan/OneDrive - Imperial College London/Prochip/Polimi/60X_140_highfreq.tif'))
+
+
 print(img.shape)
 
 if isPlot:
     plt.figure()
-    plt.imshow(np.sum(img, 0), cmap=cm.gray, clim=(0.0, 0.7 * np.sum(img, 0).max()))
+    plt.imshow(np.sum(img, 0), cmap=cm.gray, clim=(0.0, 1.0 * np.sum(img, 0).max()))
 
 ''' Calibration '''
 start_time = time.time()
@@ -85,5 +114,7 @@ plt.figure(20)
 plt.plot(phase2, 'rx-')
 plt.plot(expected_phase, 'r--')
 
+plt.plot(phase2 - phase1 - phase0, 'cx-')
+plt.plot(np.zeros(7), 'c--')
 
 plt.show()

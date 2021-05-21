@@ -178,9 +178,9 @@ class HexSimProcessor:
             A = [float(ampl[i]) for i in range(3)]
         else:
             if self.axial:
-                A = [6.0 for i in range(3)]
+                A = [4.0 / 6.0 for i in range(3)]
             else:
-                A = [12.0 for i in range(3)]
+                A = [4.0 / 12.0 for i in range(3)]
 
         for idx_p in range(0, 7):
             pstep = idx_p * 2 * pi / 7
@@ -610,11 +610,16 @@ class HexSimProcessor:
             plt.figure()
             plt.title('Find carrier')
             plt.imshow(ixf, cmap = plt.get_cmap('gray'))
+            ax = plt.gca()
 
         # pyc0, pxc0 = self._findPeak((ixf - gaussian_filter(ixf, 20)) * mask)
         pyc0, pxc0 = self._findPeak(ixf * mask)
         kx = self._dk * (pxc0 - self.N / 2)
         ky = self._dk * (pyc0 - self.N / 2)
+
+        if self.debug:
+            circle = plt.Circle([pxc0, pyc0], color = 'red', fill = False)
+            ax.add_artist(circle)
 
         return kx, ky
 
