@@ -16,7 +16,6 @@ N = 10  # number of iterations
 Nsize = 512
 
 ''' Initialize '''
-# h=HexSimProcessor
 h = HexSimProcessor()
 h.debug = False
 h.cleanup = True
@@ -56,7 +55,6 @@ try:
     print(f'Fast Calibration time: {elapsed_time:5f}s ')
 except AssertionError as error:
     print(error)
-
 
 
 ''' Calibration '''

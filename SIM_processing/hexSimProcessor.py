@@ -178,9 +178,9 @@ class HexSimProcessor:
             A = [float(ampl[i]) for i in range(3)]
         else:
             if self.axial:
-                A = [6.0 for i in range(3)]
+                A = [4.0 / 6.0 for i in range(3)]
             else:
-                A = [12.0 for i in range(3)]
+                A = [4.0 / 12.0 for i in range(3)]
 
         for idx_p in range(0, 7):
             pstep = idx_p * 2 * pi / 7
@@ -558,13 +558,51 @@ class HexSimProcessor:
 
         return res
 
+    def find_phase(self, kx, ky, img):
+        # Finds the complex correlation coefficients of the spatial frequency component at (kx, ky)
+        # in the images in img.  Run after calibration with a full set to find kx and estimated band0 component
+        img = np.float32(img)
+        hpf = self._kr > self.eta / 2
+        m = self._kr < 1.5
+        otf = np.ones((self.N, self.N), dtype = np.float32)
+        otf[m] = self._tf(self._kr[m])
+        hpf[m] = hpf[m] / otf[m]
+        hpf[np.logical_not(m)] = 0
+        hpf = fft.fftshift(hpf)
+
+        imgsum = np.sum(img, 0) / img.shape[0]
+        p = fft.ifft2(fft.fft2(img - imgsum) * hpf)
+        p0 = fft.ifft2(fft.fft2(imgsum) * hpf)
+
+        xx = np.arange(-self.N / 2 * self._dx, self.N / 2 * self._dx, self._dx, dtype=np.double)
+        phase_shift_to_xpeak = exp(1j * kx * xx * 2 * pi * self.NA / self.wavelength)
+        phase_shift_to_ypeak = exp(1j * ky * xx * 2 * pi * self.NA / self.wavelength)
+        scaling = 1 / np.sum(p0 * np.conjugate(p0))
+        cross_corr_result = np.sum(p * p0 * np.outer(
+                        phase_shift_to_ypeak, phase_shift_to_xpeak), axis = (1,2)) * scaling
+
+        if self.debug:
+            plt.figure()
+            plt.title('Find phase')
+            plt.imshow(np.sqrt(np.abs(fft.fftshift(fft.fft2(p[0, :, :] * p0)))))
+            mag = 25 * self.N / 256
+            ixfz, Kx, Ky = self._zoomf(p0 * p[0, :, :], self.N, np.single(kx), np.single(ky), mag,
+                                       self._dk * self.N)
+            plt.figure()
+            plt.title('Zoom Find phase')
+            plt.imshow(abs(ixfz))
+
+        ampl = np.abs(cross_corr_result) * 2
+        phase = np.angle(cross_corr_result)
+        return phase, ampl
+
     def _coarseFindCarrier(self, band0, band1, mask):
         otf_exclude_min_radius = self.eta/2 # Min Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
         maskhpf = fft.fftshift(self._kr > otf_exclude_min_radius)
 
         band0_common = fft.ifft2(fft.fft2(band0)*maskhpf)
-        band1_common = fft.ifft2(fft.fft2(band1)*maskhpf)
-        ix = band0_common * band1_common
+        # band1_common = fft.ifft2(fft.fft2(band1)*maskhpf)
+        ix = band0_common * band1
 
         ixf = np.abs(fft.fftshift(fft.fft2(fft.fftshift(ix))))
 
@@ -572,11 +610,16 @@ class HexSimProcessor:
             plt.figure()
             plt.title('Find carrier')
             plt.imshow(ixf, cmap = plt.get_cmap('gray'))
+            ax = plt.gca()
 
         # pyc0, pxc0 = self._findPeak((ixf - gaussian_filter(ixf, 20)) * mask)
         pyc0, pxc0 = self._findPeak(ixf * mask)
         kx = self._dk * (pxc0 - self.N / 2)
         ky = self._dk * (pyc0 - self.N / 2)
+
+        if self.debug:
+            circle = plt.Circle([pxc0, pyc0], color = 'red', fill = False)
+            ax.add_artist(circle)
 
         return kx, ky
 
@@ -599,7 +642,8 @@ class HexSimProcessor:
 
         band = band0_common * band1_common
 
-        ixfz, Kx, Ky = self._zoomf(band, self.N, np.single(self._k[pxc0]), np.single(self._k[pyc0]), 25, self._dk * self.N)
+        mag = 25 * self.N / 256
+        ixfz, Kx, Ky = self._zoomf(band, self.N, np.single(self._k[pxc0]), np.single(self._k[pyc0]), mag , self._dk * self.N)
         pyc, pxc = self._findPeak(abs(ixfz))
 
         if self.debug:
@@ -631,8 +675,8 @@ class HexSimProcessor:
         maskhpf = cp.asarray(fft.fftshift(self._kr > otf_exclude_min_radius))
 
         band0_common = cp.fft.ifft2(cp.fft.fft2(band0)*maskhpf)
-        band1_common = cp.fft.ifft2(cp.fft.fft2(band1)*maskhpf)
-        ix = band0_common * band1_common
+        # band1_common = cp.fft.ifft2(cp.fft.fft2(band1)*maskhpf)
+        ix = band0_common * band1
 
         ixf = cp.abs(cp.fft.fftshift(cp.fft.fft2(cp.fft.fftshift(ix))))
 
@@ -671,7 +715,8 @@ class HexSimProcessor:
 
         band = band0_common*band1_common
 
-        ixfz, Kx, Ky = self._zoomf_cupy(band, self.N, np.single(self._k[pxc0]), np.single(self._k[pyc0]), 25, self._dk * self.N)
+        mag = 25 * self.N / 256
+        ixfz, Kx, Ky = self._zoomf_cupy(band, self.N, np.single(self._k[pxc0]), np.single(self._k[pyc0]), mag, self._dk * self.N)
         pyc, pxc = self._findPeak_cupy(abs(ixfz))
 
         if self.debug:
