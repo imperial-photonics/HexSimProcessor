@@ -21,12 +21,13 @@ h = HexSimProcessor()
 h.debug = True
 h.cleanup = False
 h.usemodulation = False
+h.axial = True
 h.n = 1
 h.pixelsize = 5.85
 h.wavelength = 0.6
 h.alpha = 0.3
 h.beta = 0.99
-h.w = 0.3
+h.w = 0.1
 
 h.N = (Nsize // 2) * 2
 
@@ -54,17 +55,16 @@ h.N = (Nsize // 2) * 2
 # img = tif.imread('/Users/maan/OneDrive - Imperial College London/Prochip/Polimi/63X_075.tif')
 
 ''' Read Image (Polimi 2)'''
-# h.magnification = 63
-# h.NA = 0.75
-# h.eta = 0.35
-# img = tif.imread('/Users/maan/OneDrive - Imperial College London/Prochip/Polimi/63X_075_lowfreq.tif')
+h.magnification = 63
+h.NA = 0.75
+h.eta = 0.8
+img = tif.imread('/Users/maan/Downloads/210526_173813_Correct_phases_2_FLIR_NI_measurement.tif')
 
 ''' Read Image (Polimi 3)'''
-h.magnification = 60
-h.NA = 1.4
-h.eta = 0.4
-img = np.float32(tif.imread('/Users/maan/OneDrive - Imperial College London/Prochip/Polimi/60X_140_highfreq.tif'))
-
+# h.magnification = 63
+# h.NA = 0.75
+# h.eta = 0.7
+# img = tif.imread('/Users/maan/Downloads/210526_181301_Correct_phases_3_FLIR_NI_measurement.tif')
 
 print(img.shape)
 
