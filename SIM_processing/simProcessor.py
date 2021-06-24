@@ -99,7 +99,7 @@ class SimProcessor(HexSimProcessor):
             imgs = np.single(img)
 
         '''Separate bands into DC and 1 high frequency band'''
-        M = exp(1j * 2 * pi / 3) ** ((np.arange(0, 2)[:, np.newaxis]) * np.arange(0, 3))
+        M = exp(- 1j * 2 * pi / 3) ** ((np.arange(0, 2)[:, np.newaxis]) * np.arange(0, 3))
 
         sum_prepared_comp = np.zeros((2, self.N, self.N), dtype=np.complex64)
         wienerfilter = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
@@ -150,11 +150,11 @@ class SimProcessor(HexSimProcessor):
             pstep = idx_p * 2 * pi / 3
             if useCupy:
                 self._reconfactor[idx_p, :, :] = (
-                        1 + 4 / A * cp.outer(cp.exp(cp.asarray(1j * (ph * cky * yy - pstep + p))),
+                        1 + 4 / A * cp.outer(cp.exp(cp.asarray(1j * (ph * cky * yy + pstep + p))),
                                              cp.exp(cp.asarray(1j * ph * ckx * xx))).real).get()
             else:
                 self._reconfactor[idx_p, :, :] = (
-                        1 + 4 / A * np.outer(np.exp(1j * (ph * cky * yy - pstep + p)),
+                        1 + 4 / A * np.outer(np.exp(1j * (ph * cky * yy + pstep + p)),
                                              np.exp(1j * ph * ckx * xx)).real)
 
         # calculate pre-filter factors

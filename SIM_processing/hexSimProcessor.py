@@ -6,6 +6,8 @@ import scipy.io
 from numpy import exp, pi, sqrt, log2, arccos
 from scipy.ndimage import gaussian_filter
 
+
+
 try:
     import pyfftw
     import pyfftw.interfaces.numpy_fft as fft
@@ -48,7 +50,7 @@ class HexSimProcessor:
     w = 0.3         # Wiener parameter
     eta = 0.75      # eta is the factor by which the illumination grid frequency
     a = 0.25         # otf attenuation factor (a = 1 gives no correction)
-    a_type = 'exp'   # otf attenuation type ( 'exp' or 'sph' or 'none')
+    a_type = 'none'   # otf attenuation type ( 'exp' or 'sph' or 'none')
     # exceeds the incoherent cutoff, eta=1 for normal SIM, eta=sqrt(3)/2 to maximise
     # resolution without zeros in TF carrier is 2*kmax*eta
     cleanup = False
@@ -123,7 +125,7 @@ class HexSimProcessor:
             imgs = np.single(img)
 
         '''Separate bands into DC and 3 high frequency bands'''
-        M = np.complex64(exp(1j * 2 * pi / 7) ** ((np.arange(0, 4)[:, np.newaxis]) * np.arange(0, 7)))
+        M = np.complex64(exp(- 1j * 2 * pi / 7) ** ((np.arange(0, 4)[:, np.newaxis]) * np.arange(0, 7)))
 
         wienerfilter = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
 
@@ -188,18 +190,18 @@ class HexSimProcessor:
         for idx_p in range(0, 7):
             pstep = idx_p * 2 * pi / 7
             if useCupy:
-                self._reconfactor[idx_p, :, :] = (1 + 4 / A[0] * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[0] * yy - pstep + p[0]))),
+                self._reconfactor[idx_p, :, :] = (1 + 4 / A[0] * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[0] * yy + pstep + p[0]))),
                                                                            cp.exp(cp.asarray(1j * ph * ckx[0] * xx))).real
-                                                  + 4 / A[1] * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[1] * yy - 2 * pstep + p[1]))),
+                                                  + 4 / A[1] * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[1] * yy + 2 * pstep + p[1]))),
                                                                         cp.exp(cp.asarray(1j * ph * ckx[1] * xx))).real
-                                                  + 4 / A[2] * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[2] * yy - 3 * pstep + p[2]))),
+                                                  + 4 / A[2] * cp.outer(cp.exp(cp.asarray(1j * (ph * cky[2] * yy + 3 * pstep + p[2]))),
                                                                         cp.exp(cp.asarray(1j * ph * ckx[2] * xx))).real).get()
             else:
-                self._reconfactor[idx_p, :, :] = (1 + 4 / A[0] * np.outer(np.exp(1j * (ph * cky[0] * yy - pstep + p[0])),
+                self._reconfactor[idx_p, :, :] = (1 + 4 / A[0] * np.outer(np.exp(1j * (ph * cky[0] * yy + pstep + p[0])),
                                                                            np.exp(1j * ph * ckx[0] * xx)).real
-                                                  + 4 / A[1] * np.outer(np.exp(1j * (ph * cky[1] * yy - 2 * pstep + p[1])),
+                                                  + 4 / A[1] * np.outer(np.exp(1j * (ph * cky[1] * yy + 2 * pstep + p[1])),
                                                                         np.exp(1j * ph * ckx[1] * xx)).real
-                                                  + 4 / A[2] * np.outer(np.exp(1j * (ph * cky[2] * yy - 3 * pstep + p[2])),
+                                                  + 4 / A[2] * np.outer(np.exp(1j * (ph * cky[2] * yy + 3 * pstep + p[2])),
                                                                         np.exp(1j * ph * ckx[2] * xx)).real)
 
         # calculate pre-filter factors
@@ -251,8 +253,16 @@ class HexSimProcessor:
             plt.figure()
             plt.title('WienerFilter')
             plt.imshow(wienerfilter)
+            plt.figure()
+            plt.title('output apodisation')
+            plt.imshow(mtot * self._tf(1.99 * krbig * mtot / kmax, a_type = 'none'))
 
-        wienerfilter = mtot * (1 - krbig * mtot / kmax) / (wienerfilter * mtot + self.w ** 2)
+        # wienerfilter = mtot * (1 - krbig * mtot / kmax) / (wienerfilter * mtot + self.w ** 2)
+        if useCupy:
+            wienerfilter = mtot * self._tf_cupy(1.99 * krbig * mtot / kmax, a_type='none') / (
+                        wienerfilter * mask + self.w ** 2)
+        else:
+            wienerfilter = mtot * self._tf(1.99 * krbig * mtot / kmax, a_type = 'none') / (wienerfilter * mask + self.w ** 2)
         self._postfilter = fft.fftshift(wienerfilter)
 
         if self.cleanup:
@@ -781,24 +791,34 @@ class HexSimProcessor:
         atf[mask] = self._att(kr[mask])
         return atf
 
-    def _tf(self, kr):
-        otf = (1 / pi * (arccos(kr / 2) - kr / 2 * sqrt(1 - kr ** 2 / 4)))
-        if self.a_type == 'none':
-            return otf
-        elif self.a_type == 'exp':
+    def _tf(self, kr, a_type=None):
+        otf = (2 / pi * (arccos(kr / 2) - kr / 2 * sqrt(1 - kr ** 2 / 4)))
+        if a_type is None:
+            a_type = self.a_type
+        if a_type == 'exp':
+            print(f'tf = {a_type}')
             return otf * (self.a ** (kr / 2))
-        else:
+        elif a_type == 'sph':
+            print(f'tf = {a_type}')
             return otf * (1 - (1 - self.a) * (1 - (kr - 1) ** 2))
+        else:
+            print(f'tf = {a_type}')
+            return otf
 
-    def _tf_cupy(self, kr):
+    def _tf_cupy(self, kr, a_type=None):
         xp = cp.get_array_module(kr)
-        otf = (1 / pi * (xp.arccos(kr / 2) - kr / 2 * xp.sqrt(1 - kr ** 2 / 4)))
-        if self.a_type == 'none':
-            return otf
-        elif self.a_type == 'exp':
+        otf = (2 / pi * (xp.arccos(kr / 2) - kr / 2 * xp.sqrt(1 - kr ** 2 / 4)))
+        if a_type is None:
+            a_type = self.a_type
+        if a_type == 'exp':
+            print(f'tf = {a_type}')
             return otf * (self.a ** (kr / 2))
-        else:
+        elif a_type == 'sph':
+            print(f'tf = {a_type}')
             return otf * (1 - (1 - self.a) * (1 - (kr - 1) ** 2))
+        else:
+            print(f'tf = {a_type}')
+            return otf
 
     def _tfm(self, kr, mask):
         otf = np.zeros_like(kr)

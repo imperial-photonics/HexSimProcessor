@@ -297,6 +297,12 @@ hb.w = 0.3
 hb.debug = False
 hb.cleanup = False
 
+if isPlot:
+    plt.figure()
+    imgbsum = np.sum(imgbeads, 0)
+    plt.imshow(imgbsum, cmap=cm.hot,clim=(imgbsum.min(), 0.25 * (imgbsum.max() - imgbsum.min()) + imgbsum.min()))
+
+hb.a_type = 'none'
 hb.calibrate(imgbeads)
 
 try:
@@ -306,6 +312,122 @@ try:
         plt.imshow(imgb, cmap=cm.hot, clim=(0.0, 0.25 * imgb.max()))
 except AssertionError as error:
     print(error)
+
+hb.a_type = 'exp'
+hb.calibrate(imgbeads)
+
+try:
+    imgb = hb.reconstruct_ocvU(imgbeads).get()
+    if isPlot:
+        plt.figure()
+        plt.imshow(imgb, cmap=cm.hot, clim=(0.0, 0.25 * imgb.max()))
+except AssertionError as error:
+    print(error)
+
+hb.a_type = 'sph'
+hb.debug = True
+hb.calibrate(imgbeads)
+
+try:
+    imgb = hb.reconstruct_ocvU(imgbeads).get()
+    if isPlot:
+        plt.figure()
+        plt.imshow(imgb, cmap=cm.hot, clim=(0.0, 0.25 * imgb.max()))
+except AssertionError as error:
+    print(error)
+
+""" Tests with OTF modifications"""
+Nsize = 256
+
+''' Initialize '''
+# h=HexSimProcessor
+h = HexSimProcessor()
+h.debug = True
+h.cleanup = False
+h.magnification = 60
+h.NA = 1.1
+h.n = 1.33
+h.wavelength = 0.520
+h.eta = 0.7
+h.beta = 0.995
+h.alpha = 0.3
+h.w = 1
+h.a_type = 'none'
+h.a = 0.25
+
+h.N = (Nsize // 2) * 2
+
+''' Read Image '''
+data_folder = Path(os.path.dirname(__file__))
+filename  = "./SIMdata_2019-11-05_15-21-42.tif"
+filepath = os.path.join(data_folder, filename)
+# print(data_folder)
+# quit()
+# filename = str(data_folder / "SIMdata_2019-11-05_15-21-42/SIMdata_2019-11-05_15-21-42.tif")
+# filename = "./SIMdata_2019-11-05_15-21-42.tif"
+# img1 = tif.imread('/Users/maan/Documents/MATLAB/HexSIMulator/S_1.252021_0209_1828_Raw_Image.tif')
+img1 = tif.imread('/Users/maan/Imperial College London/Gong, Hai - measurement/Archive measurements/Sara_2021_0218_1641_Raw_Image.tif')
+# img1 = tif.imread('/Users/maan/Downloads/2021_0408_1454_561nm_Raw.tif')
+# img1 = tif.imread('/Users/maan/Downloads/2021_0408_1454_561nm_Raw1_0408_1454_561nm_Raw202105021955_segmented_raw_002.tif')
+
+# if Nsize != 512:
+#     img1 = np.single(img1[:, 256 - Nsize // 2: 256 + Nsize // 2, 256 - Nsize // 2: 256 + Nsize // 2])
+# else:
+img1 = np.single(img1)
+print(np.sum(img1,(1,2)))
+if isPlot:
+    plt.figure()
+    plt.imshow(np.sum(img1, 0), cmap=cm.hot, interpolation="bicubic")
+    plt.figure()
+    plt.title('input')
+    plt.hist(img1.flatten(), bins='auto', log=True)
+    plt.figure()
+    plt.imshow(np.std(img1,0), cmap=cm.hot, interpolation="bicubic")
+
+''' Calibration '''
+start_time = time.time()
+h.calibrate(img1)
+elapsed_time = time.time() - start_time
+print(f'Calibration time: {elapsed_time:5f}s ')
+print(h.N)
+''' Recontruction '''
+
+''' FFTW '''
+start_time = time.time()
+imga = h.reconstruct_rfftw(img1)
+elapsed_time = time.time() - start_time
+print(f'Batch Reconstruction time: {elapsed_time:5f}s ')
+
+if isPlot:
+    plt.figure()
+    plt.title('none')
+    plt.imshow(imga , cmap=cm.hot, clim=(0.1 * imga.max(), 0.7 * imga.max()), interpolation="bicubic")
+    plt.figure()
+    plt.title('none')
+    plt.hist(imga.flatten(), bins='auto', log=True)
+
+h.debug = False
+h.a_type = 'exp'
+h.calibrate(img1)
+imga = h.reconstruct_rfftw(img1)
+if isPlot:
+    plt.figure()
+    plt.title('exp')
+    plt.imshow(imga, cmap=cm.hot, clim=(0.1 * imga.max(), 0.7 * imga.max()), interpolation="bicubic")
+    plt.figure()
+    plt.title('exp')
+    plt.hist(imga.flatten(), bins='auto', log=True)
+
+h.a_type = 'sph'
+h.calibrate(img1)
+imga = h.reconstruct_rfftw(img1)
+if isPlot:
+    plt.figure()
+    plt.title('sph')
+    plt.imshow(imga, cmap=cm.hot, clim=(0.1 * imga.max(), 0.7 * imga.max()), interpolation="bicubic")
+    plt.figure()
+    plt.title('sph')
+    plt.hist(imga.flatten(), bins='auto', log=True)
 
 from SIM_processing import hexSimProcessor
 hexSimProcessor.opencv = True
