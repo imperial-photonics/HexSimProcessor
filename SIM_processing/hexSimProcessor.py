@@ -690,7 +690,7 @@ class HexSimProcessor:
         otf_exclude_max_radius = self.eta * 2 # Max Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
         maskbpf = (kr > otf_exclude_min_radius) & (kr < otf_exclude_max_radius)
 
-        motf = cp.fft.fftshift(maskbpf / (self._tfm_cupy(self._kr, maskbpf) + (1 - maskbpf) * 0.0001))
+        motf = cp.fft.fftshift(maskbpf / (self._tfm_cupy(kr, maskbpf) + (1 - maskbpf) * 0.0001))
 
         band0_common = cp.fft.ifft2(cp.fft.fft2(band0) * motf)
         band1_common = cp.fft.ifft2(cp.fft.fft2(band1) * motf)
