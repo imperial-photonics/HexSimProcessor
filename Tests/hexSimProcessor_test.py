@@ -223,6 +223,9 @@ except AssertionError as error:
     elapsed_time = time.time() - start_time
     print(f'Calibration time: {elapsed_time:5f}s ')
 
+print(f'spots phases: {h.p[0]}, {h.p[1]}, {h.p[2]}')
+print(f'spots amplitudes: {h.ampl[0]}, {h.ampl[1]}, {h.ampl[2]}')
+
 imga = h.reconstruct_rfftw(img2[140:147, :, :])
 if isPlot:
     plt.figure()
@@ -237,19 +240,19 @@ print(f'Batch Reconstruction time (CPU): {elapsed_time:5f}s ')
 if isPlot:
     plt.figure()
     plt.imshow(imgouta[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgouta[20, :, :].max()))
-
-start_time = time.time()
-imgoutb = h.batchreconstructcompact(img2)
-elapsed_time = time.time() - start_time
-print(f'Batch Reconstruction compact time (CPU): {elapsed_time:5f}s ')
-
-if isPlot:
-    plt.figure()
-    plt.imshow(imgoutb[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgoutb[20, :, :].max()))
-
-if isPlot:
-    plt.figure()
-    plt.imshow(imgoutb[20, :, :] - imgouta[20, :, :], cmap=cm.hot)
+#
+# start_time = time.time()
+# imgoutb = h.batchreconstructcompact(img2)
+# elapsed_time = time.time() - start_time
+# print(f'Batch Reconstruction compact time (CPU): {elapsed_time:5f}s ')
+#
+# if isPlot:
+#     plt.figure()
+#     plt.imshow(imgoutb[20, :, :], cmap=cm.hot, clim=(0.0, 0.7 * imgoutb[20, :, :].max()))
+#
+# if isPlot:
+#     plt.figure()
+#     plt.imshow(imgoutb[20, :, :] - imgouta[20, :, :], cmap=cm.hot)
 
 ''' Batch process GPU compact'''
 try:
@@ -310,6 +313,7 @@ try:
     if isPlot:
         plt.figure()
         plt.imshow(imgb, cmap=cm.hot, clim=(0.0, 0.25 * imgb.max()))
+        plt.title(hb.a_type)
 except AssertionError as error:
     print(error)
 
@@ -321,6 +325,7 @@ try:
     if isPlot:
         plt.figure()
         plt.imshow(imgb, cmap=cm.hot, clim=(0.0, 0.25 * imgb.max()))
+        plt.title(hb.a_type)
 except AssertionError as error:
     print(error)
 
@@ -330,9 +335,12 @@ hb.calibrate(imgbeads)
 
 try:
     imgb = hb.reconstruct_ocvU(imgbeads).get()
+    print('Doing sph on bead image')
     if isPlot:
-        plt.figure()
+        print('Displaying sph on bead image')
+        plt.figure(100)
         plt.imshow(imgb, cmap=cm.hot, clim=(0.0, 0.25 * imgb.max()))
+        plt.title(hb.a_type)
 except AssertionError as error:
     print(error)
 
@@ -366,7 +374,7 @@ filepath = os.path.join(data_folder, filename)
 # filename = str(data_folder / "SIMdata_2019-11-05_15-21-42/SIMdata_2019-11-05_15-21-42.tif")
 # filename = "./SIMdata_2019-11-05_15-21-42.tif"
 # img1 = tif.imread('/Users/maan/Documents/MATLAB/HexSIMulator/S_1.252021_0209_1828_Raw_Image.tif')
-img1 = tif.imread('/Users/maan/Imperial College London/Gong, Hai - measurement/Archive measurements/Sara_2021_0218_1641_Raw_Image.tif')
+img1 = tif.imread('Tests/Sara_2021_0218_1641_Raw_Image.tif')
 # img1 = tif.imread('/Users/maan/Downloads/2021_0408_1454_561nm_Raw.tif')
 # img1 = tif.imread('/Users/maan/Downloads/2021_0408_1454_561nm_Raw1_0408_1454_561nm_Raw202105021955_segmented_raw_002.tif')
 

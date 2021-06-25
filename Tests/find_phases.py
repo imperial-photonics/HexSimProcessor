@@ -56,8 +56,8 @@ h.N = (Nsize // 2) * 2
 
 ''' Read Image (Polimi 2)'''
 h.magnification = 63
-h.NA = 0.75
-h.eta = 0.8
+h.NA = 1.1
+h.eta = 0.6
 img = tif.imread('/Users/maan/Downloads/210526_173813_Correct_phases_2_FLIR_NI_measurement.tif')
 
 ''' Read Image (Polimi 3)'''
@@ -77,6 +77,7 @@ start_time = time.time()
 h.calibrate(img)
 elapsed_time = time.time() - start_time
 print(f'Calibration time: {elapsed_time:5f}s ')
+h.calibrate(img)
 
 ''' Recontruction '''
 ''' FFTW '''
@@ -94,23 +95,23 @@ tif.imwrite('/Users/maan/temp/imga.tif',imga)
 '''Check phase shifts'''
 h.debug = True
 phase0, ampl0 = h.find_phase(h.kx[0], h.ky[0], img)
-expected_phase = np.arange(7) * 2 * np.pi / 7
+expected_phase = - np.arange(7) * 2 * np.pi / 7
 phase0 = np.unwrap(phase0 - expected_phase) + expected_phase - phase0[0]
-plt.figure(20)
+plt.figure(100)
 plt.plot(phase0, 'bx-')
 plt.plot(expected_phase, 'b--')
 
 phase1, ampl1 = h.find_phase(h.kx[1], h.ky[1], img)
-expected_phase = np.arange(7) * 4 * np.pi / 7
+expected_phase = - np.arange(7) * 4 * np.pi / 7
 phase1 = np.unwrap(phase1 - expected_phase) + expected_phase - phase1[0]
-plt.figure(20)
+plt.figure(100)
 plt.plot(phase1, 'gx-')
 plt.plot(expected_phase, 'g--')
 
 phase2, ampl2 = h.find_phase(h.kx[2], h.ky[2], img)
-expected_phase = np.arange(7) * 6 * np.pi / 7
+expected_phase = - np.arange(7) * 6 * np.pi / 7
 phase2 = np.unwrap(phase2 - expected_phase) + expected_phase - phase2[0]
-plt.figure(20)
+plt.figure(100)
 plt.plot(phase2, 'rx-')
 plt.plot(expected_phase, 'r--')
 

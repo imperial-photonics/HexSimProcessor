@@ -125,7 +125,7 @@ class HexSimProcessor:
             imgs = np.single(img)
 
         '''Separate bands into DC and 3 high frequency bands'''
-        M = np.complex64(exp(- 1j * 2 * pi / 7) ** ((np.arange(0, 4)[:, np.newaxis]) * np.arange(0, 7)))
+        M = np.complex64(exp(-1j * 2 * pi / 7) ** ((np.arange(0, 4)[:, np.newaxis]) * np.arange(0, 7)))
 
         wienerfilter = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
 
@@ -576,7 +576,7 @@ class HexSimProcessor:
         # in the images in img.  Run after calibration with a full set to find kx and estimated band0 component
         img = np.float32(img)
         hpf = self._kr > self.eta / 2
-        m = self._kr < 1.5
+        m = self._kr < self.eta * 2
         otf = np.ones((self.N, self.N), dtype = np.float32)
         otf[m] = self._tf(self._kr[m])
         hpf[m] = hpf[m] / otf[m]
@@ -610,12 +610,15 @@ class HexSimProcessor:
         return phase, ampl
 
     def _coarseFindCarrier(self, band0, band1, mask):
-        otf_exclude_min_radius = self.eta/2 # Min Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
-        maskhpf = fft.fftshift(self._kr > otf_exclude_min_radius)
+        otf_exclude_min_radius = self.eta / 2 # Min Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
+        otf_exclude_max_radius = self.eta * 2 # Max Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
+        maskbpf = (self._kr > otf_exclude_min_radius) & (self._kr < otf_exclude_max_radius)
 
-        band0_common = fft.ifft2(fft.fft2(band0)*maskhpf)
-        # band1_common = fft.ifft2(fft.fft2(band1)*maskhpf)
-        ix = band0_common * band1
+        motf = fft.fftshift(maskbpf / (self._tfm(self._kr, maskbpf) + (1 - maskbpf) * 0.0001))
+
+        band0_common = fft.ifft2(fft.fft2(band0) * motf)
+        band1_common = fft.ifft2(fft.fft2(band1) * motf)
+        ix = band0_common * band1_common
 
         ixf = np.abs(fft.fftshift(fft.fft2(fft.fftshift(ix))))
 
@@ -638,8 +641,8 @@ class HexSimProcessor:
         pxc0 = np.int(np.round(kx_in / self._dk) + self.N / 2)
         pyc0 = np.int(np.round(ky_in / self._dk) + self.N / 2)
 
-        otf_exclude_min_radius = self.eta/2
-        otf_exclude_max_radius = 1.5
+        otf_exclude_min_radius = self.eta / 2
+        otf_exclude_max_radius = self.eta * 2
 
         m = (self._kr < 2)
         otf = fft.fftshift(self._tfm(self._kr, m) + (1 - m) * 0.0001)
@@ -681,13 +684,17 @@ class HexSimProcessor:
         band0 = cp.asarray(band0)
         band1 = cp.asarray(band1)
         mask = cp.asarray(mask)
+        kr = cp.asarray(self._kr)
 
-        otf_exclude_min_radius = self.eta/2  # Min Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
-        maskhpf = cp.asarray(fft.fftshift(self._kr > otf_exclude_min_radius))
+        otf_exclude_min_radius = self.eta / 2 # Min Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
+        otf_exclude_max_radius = self.eta * 2 # Max Radius of the circular region around DC that is to be excluded from the cross-correlation calculation
+        maskbpf = (kr > otf_exclude_min_radius) & (kr < otf_exclude_max_radius)
 
-        band0_common = cp.fft.ifft2(cp.fft.fft2(band0)*maskhpf)
-        # band1_common = cp.fft.ifft2(cp.fft.fft2(band1)*maskhpf)
-        ix = band0_common * band1
+        motf = cp.fft.fftshift(maskbpf / (self._tfm_cupy(self._kr, maskbpf) + (1 - maskbpf) * 0.0001))
+
+        band0_common = cp.fft.ifft2(cp.fft.fft2(band0) * motf)
+        band1_common = cp.fft.ifft2(cp.fft.fft2(band1) * motf)
+        ix = band0_common * band1_common
 
         ixf = cp.abs(cp.fft.fftshift(cp.fft.fft2(cp.fft.fftshift(ix))))
 
