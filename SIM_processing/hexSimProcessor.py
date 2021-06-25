@@ -260,9 +260,9 @@ class HexSimProcessor:
         # wienerfilter = mtot * (1 - krbig * mtot / kmax) / (wienerfilter * mtot + self.w ** 2)
         if useCupy:
             wienerfilter = mtot * self._tf_cupy(1.99 * krbig * mtot / kmax, a_type='none') / (
-                        wienerfilter * mask + self.w ** 2)
+                        wienerfilter * mtot + self.w ** 2)
         else:
-            wienerfilter = mtot * self._tf(1.99 * krbig * mtot / kmax, a_type = 'none') / (wienerfilter * mask + self.w ** 2)
+            wienerfilter = mtot * self._tf(1.99 * krbig * mtot / kmax, a_type = 'none') / (wienerfilter * mtot + self.w ** 2)
         self._postfilter = fft.fftshift(wienerfilter)
 
         if self.cleanup:

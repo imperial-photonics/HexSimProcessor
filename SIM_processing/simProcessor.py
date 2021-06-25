@@ -180,11 +180,6 @@ class SimProcessor(HexSimProcessor):
         wienerfilter[mask] = wienerfilter[mask] + (self._tf(krbig[mask]) ** 2) * self._att(krbig[mask])
         self.wienerfilter = wienerfilter
 
-        if self.debug:
-            plt.figure()
-            plt.title('WienerFilter')
-            plt.imshow(wienerfilter)
-
         th = np.linspace(0, 2 * pi, 360, dtype = np.single)
         inv = np.geterr()['invalid']
         np.seterr(invalid = 'ignore')
@@ -201,7 +196,20 @@ class SimProcessor(HexSimProcessor):
         else:
             kmax = np.interp(np.arctan2(kybig, kxbig), th, kmaxth, period=2 * pi).astype(np.single)
 
-        wienerfilter = mtot * (1 - krbig * mtot / kmax) / (wienerfilter * mtot + self.w ** 2)
+        if self.debug:
+            plt.figure()
+            plt.title('WienerFilter')
+            plt.imshow(wienerfilter)
+            plt.figure()
+            plt.title('output apodisation')
+            plt.imshow(mtot * self._tf(1.99 * krbig * mtot / kmax, a_type = 'none'))
+
+        if useCupy:
+            wienerfilter = mtot * self._tf_cupy(1.99 * krbig * mtot / kmax, a_type='none') / (
+                        wienerfilter * mtot + self.w ** 2)
+        else:
+            wienerfilter = mtot * self._tf(1.99 * krbig * mtot / kmax, a_type = 'none') / (wienerfilter * mtot + self.w ** 2)
+        self._postfilter = fft.fftshift(wienerfilter)
 
         self._postfilter = fft.fftshift(wienerfilter)
 
