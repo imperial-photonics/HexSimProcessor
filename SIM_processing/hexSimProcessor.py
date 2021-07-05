@@ -56,7 +56,7 @@ class HexSimProcessor:
     cleanup = False
     debug = True
     axial = False
-    usemodulation = True
+    usemodulation = False
 
     def __init__(self):
         self._lastN = 0

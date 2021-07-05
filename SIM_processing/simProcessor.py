@@ -150,8 +150,7 @@ class SimProcessor(HexSimProcessor):
             for k in range(0, 2):
                 for l in range(0, 3):
                     sum_prepared_comp[k, :, :] = sum_prepared_comp[k, :, :] + imgs[l, :, :] * M[k, l]
-            self.kx, self.ky = self._coarseFindCarrier(sum_prepared_comp[0, :, :],
-                                                       sum_prepared_comp[1, :, :], mask1)
+
             if useCupy:
                 ckx, cky, p, ampl = self._refineCarrier_cupy(sum_prepared_comp[0, :, :],
                                                              sum_prepared_comp[1, :, :], self.kx, self.ky)
@@ -181,9 +180,18 @@ class SimProcessor(HexSimProcessor):
 
         if self.usePhases:
             if useCupy:
-                self._reconfactor[idx_p, :, :] = (
-                        1 + 4 / A * cp.outer(cp.exp(cp.asarray(1j * (ph * cky * yy + pstep + p))),
-                                             cp.exp(cp.asarray(1j * ph * ckx * xx))).real).get()
+                self._reconfactor[0, :, :] = (A * cp.cos((phi[1] - phi[2])/2) -
+                                                  cp.outer(cp.exp(cp.asarray(1j * (ph * cky * yy + p - (phi[1] + phi[2])/2))),
+                                                           cp.exp(cp.asarray(1j * ph * ckx * xx))).real) / \
+                                                 (2 * A * cp.sin((phi[0] - phi[1]) / 2)*cp.sin((phi[0] - phi[2]) / 2)).get()
+                self._reconfactor[1, :, :] = (A * cp.cos((phi[2] - phi[0])/2) -
+                                                  cp.outer(cp.exp(cp.asarray(1j * (ph * cky * yy + p - (phi[2] + phi[0])/2))),
+                                                           cp.exp(cp.asarray(1j * ph * ckx * xx))).real) / \
+                                                 (2 * A * cp.sin((phi[1] - phi[2]) / 2)*cp.sin((phi[1] - phi[0]) / 2)).get()
+                self._reconfactor[2, :, :] = (A * cp.cos((phi[0] - phi[1])/2) -
+                                                  cp.outer(np.exp(cp.asarray(1j * (ph * cky * yy + p - (phi[0] + phi[1])/2))),
+                                                           cp.exp(cp.asarray(1j * ph * ckx * xx))).real) / \
+                                                 (2 * A * cp.sin((phi[2] - phi[0]) / 2)*cp.sin((phi[2] - phi[1]) / 2)).get()
             else:
                 self._reconfactor[0, :, :] = (A * np.cos((phi[1] - phi[2])/2) -
                                                   np.outer(np.exp(1j * (ph * cky * yy + p - (phi[1] + phi[2])/2)),
