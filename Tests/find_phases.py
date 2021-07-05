@@ -20,14 +20,14 @@ Nsize = 512
 h = HexSimProcessor()
 h.debug = True
 h.cleanup = False
-h.usemodulation = False
+h.usemodulation = True
 h.axial = True
 h.n = 1
 h.pixelsize = 5.85
 h.wavelength = 0.6
-h.alpha = 0.3
+h.alpha = 0.5
 h.beta = 0.99
-h.w = 0.1
+h.w = 0.3
 
 h.N = (Nsize // 2) * 2
 
@@ -39,7 +39,7 @@ h.N = (Nsize // 2) * 2
 
 ''' Read Image (Imperial simulated data)'''
 # h.magnification = 60
-# h.NA = 1.1
+# h.NA = 0.75
 # h.eta = 0.70
 # h.wavelength = 0.525
 # img0 = tif.imread('/Users/maan/Documents/Office Projects/Prochip/HexSimProcessor/Tests/Raw_img_stack_512_inplane.tif')
@@ -55,17 +55,23 @@ h.N = (Nsize // 2) * 2
 # img = tif.imread('/Users/maan/OneDrive - Imperial College London/Prochip/Polimi/63X_075.tif')
 
 ''' Read Image (Polimi 2)'''
-h.magnification = 63
-h.NA = 1.1
-h.eta = 0.6
-img = tif.imread('/Users/maan/Downloads/210526_173813_Correct_phases_2_FLIR_NI_measurement.tif')
-
-''' Read Image (Polimi 3)'''
 # h.magnification = 63
 # h.NA = 0.75
-# h.eta = 0.7
-# img = tif.imread('/Users/maan/Downloads/210526_181301_Correct_phases_3_FLIR_NI_measurement.tif')
-
+# h.eta = 0.75
+# img = np.single(tif.imread('/Users/maan/Downloads/210526_173813_Correct_phases_2_FLIR_NI_measurement.tif'))
+''' Read Image (Polimi 3)'''
+h.magnification = 63
+h.NA = 0.75
+h.eta = 0.6
+img = np.single(tif.imread('/Users/maan/Downloads/210526_181301_Correct_phases_3_FLIR_NI_measurement.tif'))
+img -= np.min(img)
+normfac = np.single(np.sum(img) / (7.0 * np.sum(img,(1,2))))
+print(normfac)
+plt.figure()
+plt.hist(img.flatten(), bins=1000, log=True)
+for i in range(7):
+    img[i,:,:] *= normfac[i]
+print(np.sum(img,(1,2)))
 print(img.shape)
 
 if isPlot:
@@ -77,7 +83,6 @@ start_time = time.time()
 h.calibrate(img)
 elapsed_time = time.time() - start_time
 print(f'Calibration time: {elapsed_time:5f}s ')
-h.calibrate(img)
 
 ''' Recontruction '''
 ''' FFTW '''
@@ -88,6 +93,9 @@ print(f'Reconstruction time: {elapsed_time:5f}s ')
 if isPlot:
     plt.figure()
     plt.imshow(imga , cmap=cm.gray, clim=(0.0, 0.7 * imga.max()))
+    plt.figure()
+    plt.hist(imga.flatten(), bins='auto', log=True)
+
 
 tif.imwrite('/Users/maan/temp/img.tif',sum(img,0))
 tif.imwrite('/Users/maan/temp/imga.tif',imga)
