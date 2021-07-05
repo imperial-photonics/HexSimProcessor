@@ -36,6 +36,7 @@ except:
 from SIM_processing.hexSimProcessor import HexSimProcessor
 
 class SimProcessor(HexSimProcessor):
+    usePhases = True    # Whether to measure and use individual phases in calibration/reconstruction
 
     def __init__(self):
         self._lastN = 0
@@ -136,6 +137,38 @@ class SimProcessor(HexSimProcessor):
             print(f'p  = {p}')
             print(f'a  = {ampl}')
 
+        if self.usePhases:
+            phi, amps = self.find_phase(self.kx, self.ky, img)
+            M = np.array([[np.cos((phi[1] - phi[2]) / 2) / (2 * np.sin((phi[0] - phi[1]) / 2)*np.sin((phi[0] - phi[2]) / 2)),
+                           np.cos((phi[2] - phi[0]) / 2) / (2 * np.sin((phi[1] - phi[2]) / 2)*np.sin((phi[1] - phi[0]) / 2)),
+                           np.cos((phi[0] - phi[1]) / 2) / (2 * np.sin((phi[2] - phi[0]) / 2)*np.sin((phi[2] - phi[1]) / 2))],
+                          [-np.exp(1j * (phi[1] + phi[2]) / 2) / (4 * np.sin((phi[0] - phi[1]) / 2)*np.sin((phi[0] - phi[2]) / 2)),
+                           -np.exp(1j * (phi[2] + phi[0]) / 2) / (4 * np.sin((phi[1] - phi[2]) / 2)*np.sin((phi[1] - phi[0]) / 2)),
+                           -np.exp(1j * (phi[0] + phi[1]) / 2) / (4 * np.sin((phi[2] - phi[0]) / 2)*np.sin((phi[2] - phi[1]) / 2))]],
+                         np.complex64)
+            sum_prepared_comp.fill(0)
+            for k in range(0, 2):
+                for l in range(0, 3):
+                    sum_prepared_comp[k, :, :] = sum_prepared_comp[k, :, :] + imgs[l, :, :] * M[k, l]
+            self.kx, self.ky = self._coarseFindCarrier(sum_prepared_comp[0, :, :],
+                                                       sum_prepared_comp[1, :, :], mask1)
+            if useCupy:
+                ckx, cky, p, ampl = self._refineCarrier_cupy(sum_prepared_comp[0, :, :],
+                                                             sum_prepared_comp[1, :, :], self.kx, self.ky)
+            else:
+                ckx, cky, p, ampl = self._refineCarrier(sum_prepared_comp[0, :, :],
+                                                        sum_prepared_comp[1, :, :], self.kx, self.ky)
+            self.kx = ckx  # store found kx, ky, p and ampl values
+            self.ky = cky
+            self.p = p
+            self.ampl = ampl
+
+            if self.debug:
+                print(f'kx = {ckx}')
+                print(f'ky = {cky}')
+                print(f'p  = {p}')
+                print(f'a  = {ampl}')
+
         ph = np.single(2 * pi * self.NA / self.wavelength)
 
         xx = np.arange(-self._dx2 * self.N, self._dx2 * self.N, self._dx2, dtype=np.single)
@@ -146,16 +179,35 @@ class SimProcessor(HexSimProcessor):
         else:
             A = 1
 
-        for idx_p in range(0, 3):
-            pstep = idx_p * 2 * pi / 3
+        if self.usePhases:
             if useCupy:
                 self._reconfactor[idx_p, :, :] = (
                         1 + 4 / A * cp.outer(cp.exp(cp.asarray(1j * (ph * cky * yy + pstep + p))),
                                              cp.exp(cp.asarray(1j * ph * ckx * xx))).real).get()
             else:
-                self._reconfactor[idx_p, :, :] = (
-                        1 + 4 / A * np.outer(np.exp(1j * (ph * cky * yy + pstep + p)),
-                                             np.exp(1j * ph * ckx * xx)).real)
+                self._reconfactor[0, :, :] = (A * np.cos((phi[1] - phi[2])/2) -
+                                                  np.outer(np.exp(1j * (ph * cky * yy + p - (phi[1] + phi[2])/2)),
+                                                           np.exp(1j * ph * ckx * xx)).real) / \
+                                                 (2 * A * np.sin((phi[0] - phi[1]) / 2)*np.sin((phi[0] - phi[2]) / 2))
+                self._reconfactor[1, :, :] = (A * np.cos((phi[2] - phi[0])/2) -
+                                                  np.outer(np.exp(1j * (ph * cky * yy + p - (phi[2] + phi[0])/2)),
+                                                           np.exp(1j * ph * ckx * xx)).real) / \
+                                                 (2 * A * np.sin((phi[1] - phi[2]) / 2)*np.sin((phi[1] - phi[0]) / 2))
+                self._reconfactor[2, :, :] = (A * np.cos((phi[0] - phi[1])/2) -
+                                                  np.outer(np.exp(1j * (ph * cky * yy + p - (phi[0] + phi[1])/2)),
+                                                           np.exp(1j * ph * ckx * xx)).real) / \
+                                                 (2 * A * np.sin((phi[2] - phi[0]) / 2)*np.sin((phi[2] - phi[1]) / 2))
+        else:
+            for idx_p in range(0, 3):
+                pstep = idx_p * 2 * pi / 3
+                if useCupy:
+                    self._reconfactor[idx_p, :, :] = (
+                            1 + 4 / A * cp.outer(cp.exp(cp.asarray(1j * (ph * cky * yy + pstep + p))),
+                                                 cp.exp(cp.asarray(1j * ph * ckx * xx))).real).get()
+                else:
+                    self._reconfactor[idx_p, :, :] = (
+                            1 + 4 / A * np.outer(np.exp(1j * (ph * cky * yy + pstep + p)),
+                                                 np.exp(1j * ph * ckx * xx)).real)
 
         # calculate pre-filter factors
 
