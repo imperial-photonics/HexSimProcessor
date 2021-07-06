@@ -76,8 +76,9 @@ if __name__ == '__main__':
     210611_131018_PROCHIP_SIM_rodamine :dataset 0
     """
 
-    dataset_num = 11
-    file_name = '210528_195219_PROCHIP_multichannel_ROI_dataset11.h5'
+    dataset_num = 51
+    # file_name = '210528_195219_PROCHIP_multichannel_ROI_dataset11.h5'
+    file_name = '/Users/maan/OneDrive - Imperial College London/measurement/Milan/210611_152833_PROCHIP_SIM_ROI_dataset51/210611_152833_PROCHIP_SIM_ROI_dataset51.h5'
 
     
     t_idx = f'/t{dataset_num:04d}/'    
