@@ -40,10 +40,11 @@ class SimProcessor(HexSimProcessor):
 
     def __init__(self):
         self._lastN = 0
-        self.kx = np.zeros((3, 1), dtype=np.single)
-        self.ky = np.zeros((3, 1), dtype=np.single)
-        self.p = np.zeros((3, 1), dtype=np.single)
-        self.ampl = np.zeros((3, 1), dtype=np.single)
+        self.kx = np.single(0)
+        self.ky = np.single(0)
+        self.p = np.single(0)
+        self.ampl = np.single(0)
+        self._nsteps = 3
 
     def _allocate_arrays(self):
         ''' define matrix '''

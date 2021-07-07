@@ -118,9 +118,25 @@ tif.imwrite('/Users/maan/temp/imga.tif',imga)
 tif.imwrite('/Users/maan/temp/imgb.tif',imgb)
 tif.imwrite('/Users/maan/temp/imgc.tif',imgc)
 
-phase, ampl = h.find_phase(h.kx, h.ky, img[570:639,:,:])
-print(phase)
-expected_phase = - np.arange(69) * 2 * np.pi / 3
+start = 570
+length = 69
+phase = np.zeros(length)
+ampl = np.zeros(length)
+h.debug = False
+for i in range(0, length, 3):
+    p, a = h.find_phase(h.kx, h.ky, img[start + i:start + i + 3,:,:])
+    phase[i:i+3] = p
+    ampl[i:i+3] = a
+p, a = h.find_phase(h.kx, h.ky, img[start:start + length,:,:])
+plt.figure(99)
+plt.polar(phase[0::3], ampl[0::3], 'gx-')
+plt.polar(phase[1::3], ampl[1::3], 'bx-')
+plt.polar(phase[2::3], ampl[2::3], 'rx-')
+plt.polar(p[0], a[0], color='lightgreen', marker='*', markersize=15)
+plt.polar(p[1], a[1], color='lightblue', marker='*', markersize=15)
+plt.polar(p[2], a[2], color='lightpink', marker='*', markersize=15)
+
+expected_phase = - np.arange(phase.size) * 2 * np.pi / 3
 phase = np.unwrap(phase - expected_phase) + expected_phase - phase[0]
 plt.figure(100)
 plt.plot(phase, 'gx-')
@@ -134,5 +150,6 @@ plt.plot(d[0::3], 'gx-')
 plt.plot(d[1::3], 'bx-')
 plt.plot(d[2::3], 'rx-')
 plt.plot(np.zeros_like(expected_phase)[0::3], 'g--')
+
 plt.show()
 

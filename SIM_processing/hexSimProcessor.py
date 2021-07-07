@@ -64,6 +64,7 @@ class HexSimProcessor:
         self.ky = np.zeros((3, 1), dtype=np.single)
         self.p = np.zeros((3, 1), dtype=np.single)
         self.ampl = np.zeros((3, 1), dtype=np.single)
+        self._nsteps = 7
 
     def _allocate_arrays(self):
         """ define matrix """
@@ -574,6 +575,9 @@ class HexSimProcessor:
     def find_phase(self, kx, ky, img):
         # Finds the complex correlation coefficients of the spatial frequency component at (kx, ky)
         # in the images in img.  Run after calibration with a full set to find kx and estimated band0 component
+        # Combines the given images modulo the self._nsteps, and returns self._nsteps amplitude and phase values
+        assert (img.shape[0] >= self._nsteps), f'number of images in find_phase should be >= {self._nsteps}'
+        nimages = (img.shape[0] // self._nsteps) * self._nsteps
         img = np.float32(img)
         hpf = self._kr > self.eta / 2
         m = self._kr < self.eta * 2
@@ -583,8 +587,12 @@ class HexSimProcessor:
         hpf[np.logical_not(m)] = 0
         hpf = fft.fftshift(hpf)
 
-        imgsum = np.sum(img, 0) / img.shape[0]
-        p = fft.ifft2(fft.fft2(img - imgsum) * hpf)
+        imgsum = np.sum(img[:nimages, :, :], 0) / nimages
+        imgnsum = np.zeros((self._nsteps, img.shape[1], img.shape[2]), dtype = np.single)
+        for i in range(self._nsteps):
+            imgnsum[i, :, :] = np.sum(img[i:nimages:self._nsteps, :, :], 0) * self._nsteps / nimages
+
+        p = fft.ifft2(fft.fft2(imgnsum - imgsum) * hpf)
         p0 = fft.ifft2(fft.fft2(imgsum) * hpf)
 
         xx = np.arange(-self.N / 2 * self._dx, self.N / 2 * self._dx, self._dx, dtype=np.double)
@@ -803,13 +811,10 @@ class HexSimProcessor:
         if a_type is None:
             a_type = self.a_type
         if a_type == 'exp':
-            print(f'tf = {a_type}')
             return otf * (self.a ** (kr / 2))
         elif a_type == 'sph':
-            print(f'tf = {a_type}')
             return otf * (1 - (1 - self.a) * (1 - (kr - 1) ** 2))
         else:
-            print(f'tf = {a_type}')
             return otf
 
     def _tf_cupy(self, kr, a_type=None):
@@ -818,13 +823,10 @@ class HexSimProcessor:
         if a_type is None:
             a_type = self.a_type
         if a_type == 'exp':
-            print(f'tf = {a_type}')
             return otf * (self.a ** (kr / 2))
         elif a_type == 'sph':
-            print(f'tf = {a_type}')
             return otf * (1 - (1 - self.a) * (1 - (kr - 1) ** 2))
         else:
-            print(f'tf = {a_type}')
             return otf
 
     def _tfm(self, kr, mask):
